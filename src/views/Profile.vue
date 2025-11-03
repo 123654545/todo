@@ -2,8 +2,14 @@
   <div class="profile-container">
     <!-- 用户信息卡片 -->
     <div class="user-card">
-      <div class="user-avatar" @click="editAvatar">
-        <span class="avatar-icon">{{ userInitials }}</span>
+      <div class="user-avatar" @click="editAvatar" @contextmenu="showAvatarMenu">
+        <span class="avatar-icon" v-if="!userProfile?.avatar_url">{{ userInitials }}</span>
+        <img 
+          v-else
+          :src="userProfile.avatar_url" 
+          :alt="userProfile?.display_name || currentUser?.email"
+          class="avatar-image"
+        />
         <div class="avatar-overlay">
           <span class="edit-icon">✏️</span>
         </div>
@@ -751,9 +757,268 @@ export default {
       alert(helpText)
     }
     
-    // 交互方法
+    // 头像编辑功能
     const editAvatar = () => {
-      alert('头像编辑功能开发中...')
+      // 创建文件输入元素
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = 'image/*'
+      input.style.display = 'none'
+      
+      input.onchange = async (e) => {
+        const file = e.target.files[0]
+        if (!file) return
+        
+        // 检查文件大小（限制为2MB）
+        if (file.size > 2 * 1024 * 1024) {
+          alert('图片大小不能超过2MB')
+          return
+        }
+        
+        // 检查文件类型
+        if (!file.type.startsWith('image/')) {
+          alert('请选择图片文件')
+          return
+        }
+        
+        try {
+          // 显示加载状态
+          const originalText = document.querySelector('.avatar-icon')?.textContent
+          if (document.querySelector('.avatar-icon')) {
+            document.querySelector('.avatar-icon').textContent = '⏳'
+          }
+          
+          // 创建图片预览
+          const reader = new FileReader()
+          reader.onload = async (event) => {
+            const imageUrl = event.target.result
+            
+            // 询问用户是否确认上传
+            if (confirm('确定要上传这张图片作为头像吗？')) {
+              await uploadAvatar(file, imageUrl)
+            }
+            
+            // 恢复原始文本
+            if (document.querySelector('.avatar-icon') && originalText) {
+              document.querySelector('.avatar-icon').textContent = originalText
+            }
+          }
+          reader.readAsDataURL(file)
+          
+        } catch (error) {
+          console.error('头像上传失败:', error)
+          alert('头像上传失败，请重试')
+          
+          // 恢复原始文本
+          if (document.querySelector('.avatar-icon')) {
+            document.querySelector('.avatar-icon').textContent = userInitials.value
+          }
+        }
+      }
+      
+      // 触发文件选择
+      document.body.appendChild(input)
+      input.click()
+      document.body.removeChild(input)
+    }
+    
+    // 上传头像到Supabase
+    const uploadAvatar = async (file, imageUrl) => {
+      try {
+        // 生成唯一的文件名
+        const fileName = `avatars/${currentUser.value.id}/${Date.now()}_${file.name}`
+        
+        // 上传到Supabase存储
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('avatars')
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: false
+          })
+        
+        if (uploadError) throw uploadError
+        
+        // 获取公开URL
+        const { data: publicUrlData } = supabase.storage
+          .from('avatars')
+          .getPublicUrl(fileName)
+        
+        const avatarUrl = publicUrlData.publicUrl
+        
+        // 更新用户档案中的头像URL
+        const { error: updateError } = await supabase
+          .from('user_profiles')
+          .upsert({
+            user_id: currentUser.value.id,
+            avatar_url: avatarUrl,
+            updated_at: new Date().toISOString()
+          })
+        
+        if (updateError) throw updateError
+        
+        // 更新本地状态
+        userProfile.value.avatar_url = avatarUrl
+        
+        alert('头像上传成功！')
+        
+        // 重新加载用户档案以获取最新数据
+        await loadUserProfile()
+        
+      } catch (error) {
+        console.error('头像上传失败:', error)
+        
+        // 检查是否是存储桶不存在
+        if (error.message?.includes('bucket') || error.message?.includes('Bucket')) {
+          alert('头像存储功能未配置，请联系管理员')
+        } else {
+          alert('头像上传失败，请重试')
+        }
+        throw error
+      }
+    }
+    
+    // 删除头像
+    const deleteAvatar = async () => {
+      if (!userProfile.value.avatar_url) {
+        alert('当前没有设置头像')
+        return
+      }
+      
+      if (confirm('确定要删除当前头像吗？')) {
+        try {
+          // 从用户档案中移除头像URL
+          const { error: updateError } = await supabase
+            .from('user_profiles')
+            .upsert({
+              user_id: currentUser.value.id,
+              avatar_url: null,
+              updated_at: new Date().toISOString()
+            })
+          
+          if (updateError) throw updateError
+          
+          // 更新本地状态
+          userProfile.value.avatar_url = null
+          
+          alert('头像删除成功！')
+          
+          // 重新加载用户档案
+          await loadUserProfile()
+          
+        } catch (error) {
+          console.error('头像删除失败:', error)
+          alert('头像删除失败，请重试')
+        }
+      }
+    }
+    
+    // 显示头像操作菜单
+    const showAvatarMenu = (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+      
+      // 创建菜单元素
+      const menu = document.createElement('div')
+      menu.className = 'avatar-menu'
+      menu.style.cssText = `
+        position: absolute;
+        top: 100%;
+        left: 0;
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        z-index: 1000;
+        min-width: 120px;
+      `
+      
+      const menuItems = [
+        { text: '更换头像', action: editAvatar },
+        { text: '查看头像', action: () => viewAvatar() },
+        { text: '删除头像', action: deleteAvatar }
+      ]
+      
+      menuItems.forEach(item => {
+        const button = document.createElement('button')
+        button.textContent = item.text
+        button.style.cssText = `
+          display: block;
+          width: 100%;
+          padding: 8px 12px;
+          border: none;
+          background: none;
+          text-align: left;
+          cursor: pointer;
+          font-size: 14px;
+        `
+        button.onmouseenter = () => button.style.background = '#f1f5f9'
+        button.onmouseleave = () => button.style.background = 'none'
+        button.onclick = (e) => {
+          e.stopPropagation()
+          item.action()
+          document.body.removeChild(menu)
+        }
+        menu.appendChild(button)
+      })
+      
+      // 添加关闭菜单的功能
+      const closeMenu = () => {
+        if (menu.parentNode) {
+          document.body.removeChild(menu)
+        }
+        document.removeEventListener('click', closeMenu)
+      }
+      
+      document.body.appendChild(menu)
+      document.addEventListener('click', closeMenu)
+      
+      // 定位菜单
+      const avatarElement = event.currentTarget
+      const rect = avatarElement.getBoundingClientRect()
+      menu.style.top = `${rect.bottom + window.scrollY}px`
+      menu.style.left = `${rect.left + window.scrollX}px`
+    }
+    
+    // 查看头像大图
+    const viewAvatar = () => {
+      if (!userProfile.value.avatar_url) {
+        alert('当前没有设置头像')
+        return
+      }
+      
+      // 创建模态窗口显示大图
+      const modal = document.createElement('div')
+      modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+      `
+      
+      const image = document.createElement('img')
+      image.src = userProfile.value.avatar_url
+      image.style.cssText = `
+        max-width: 80%;
+        max-height: 80%;
+        border-radius: 8px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      `
+      
+      const closeModal = () => {
+        document.body.removeChild(modal)
+      }
+      
+      modal.onclick = closeModal
+      image.onclick = (e) => e.stopPropagation()
+      
+      modal.appendChild(image)
+      document.body.appendChild(modal)
     }
     
     const editProfile = () => {
@@ -883,7 +1148,10 @@ export default {
       userLevel,
       userLevelText,
       levelProgress,
-      recentActivities
+      recentActivities,
+      showAvatarMenu,
+      deleteAvatar,
+      viewAvatar
     }
   }
 }
@@ -926,6 +1194,7 @@ export default {
   position: relative;
   cursor: pointer;
   transition: all 0.3s ease;
+  overflow: hidden;
 }
 
 .user-avatar:hover {
@@ -937,6 +1206,13 @@ export default {
   font-size: 32px;
   font-weight: bold;
   z-index: 2;
+}
+
+.avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
 }
 
 .avatar-overlay {
