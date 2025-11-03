@@ -822,42 +822,49 @@ export default {
       document.body.removeChild(input)
     }
     
-    // 上传头像到Supabase
+    // 上传头像（使用本地存储方案）
     const uploadAvatar = async (file, imageUrl) => {
       try {
-        // 生成唯一的文件名
-        const fileName = `avatars/${currentUser.value.id}/${Date.now()}_${file.name}`
+        // 将头像数据转换为Base64
+        const base64Avatar = await fileToBase64(file)
         
-        // 上传到Supabase存储
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('avatars')
-          .upload(fileName, file, {
-            cacheControl: '3600',
-            upsert: false
-          })
-        
-        if (uploadError) throw uploadError
-        
-        // 获取公开URL
-        const { data: publicUrlData } = supabase.storage
-          .from('avatars')
-          .getPublicUrl(fileName)
-        
-        const avatarUrl = publicUrlData.publicUrl
-        
-        // 更新用户档案中的头像URL
-        const { error: updateError } = await supabase
+        // 先检查用户档案是否存在
+        const { data: existingProfile, error: checkError } = await supabase
           .from('user_profiles')
-          .upsert({
-            user_id: currentUser.value.id,
-            avatar_url: avatarUrl,
-            updated_at: new Date().toISOString()
-          })
+          .select('user_id')
+          .eq('user_id', currentUser.value.id)
+          .limit(1)
+        
+        if (checkError) throw checkError
+        
+        // 根据是否存在决定使用更新还是插入
+        let updateError
+        if (existingProfile && existingProfile.length > 0) {
+          // 更新现有档案
+          const { error } = await supabase
+            .from('user_profiles')
+            .update({
+              avatar_url: imageUrl,
+              updated_at: new Date().toISOString()
+            })
+            .eq('user_id', currentUser.value.id)
+          updateError = error
+        } else {
+          // 插入新档案
+          const { error } = await supabase
+            .from('user_profiles')
+            .insert({
+              user_id: currentUser.value.id,
+              avatar_url: imageUrl,
+              updated_at: new Date().toISOString()
+            })
+          updateError = error
+        }
         
         if (updateError) throw updateError
         
         // 更新本地状态
-        userProfile.value.avatar_url = avatarUrl
+        userProfile.value.avatar_url = imageUrl
         
         alert('头像上传成功！')
         
@@ -866,15 +873,19 @@ export default {
         
       } catch (error) {
         console.error('头像上传失败:', error)
-        
-        // 检查是否是存储桶不存在
-        if (error.message?.includes('bucket') || error.message?.includes('Bucket')) {
-          alert('头像存储功能未配置，请联系管理员')
-        } else {
-          alert('头像上传失败，请重试')
-        }
+        alert('头像上传失败，请重试')
         throw error
       }
+    }
+    
+    // 文件转换为Base64
+    const fileToBase64 = (file) => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.readAsDataURL(file)
+        reader.onload = () => resolve(reader.result)
+        reader.onerror = error => reject(error)
+      })
     }
     
     // 删除头像
@@ -886,19 +897,20 @@ export default {
       
       if (confirm('确定要删除当前头像吗？')) {
         try {
-          // 从用户档案中移除头像URL
+          // 从用户档案中移除头像数据
           const { error: updateError } = await supabase
             .from('user_profiles')
-            .upsert({
-              user_id: currentUser.value.id,
+            .update({
               avatar_url: null,
               updated_at: new Date().toISOString()
             })
+            .eq('user_id', currentUser.value.id)
           
           if (updateError) throw updateError
           
           // 更新本地状态
           userProfile.value.avatar_url = null
+
           
           alert('头像删除成功！')
           
