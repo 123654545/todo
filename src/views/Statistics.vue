@@ -120,7 +120,7 @@
         :class="['nav-btn', { active: $route.name === 'Profile' }]"
         @click="$router.push('/profile')"
       >
-        👤 我的
+        👤 个人
       </button>
     </nav>
   </div>
