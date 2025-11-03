@@ -31,6 +31,22 @@
           class="nl-input"
           rows="2"
         ></textarea>
+        
+        <!-- 优先级选择器 -->
+        <div class="priority-selector">
+          <label>优先级：</label>
+          <select v-model="selectedPriority" class="priority-dropdown">
+            <option 
+              v-for="option in priorityOptions" 
+              :key="option.value"
+              :value="option.value"
+              :class="`priority-${option.value}`"
+            >
+              {{ option.icon }} {{ option.label }}
+            </option>
+          </select>
+        </div>
+        
         <button @click="addTodoFromNL" class="add-btn">添加</button>
       </div>
 
@@ -146,6 +162,14 @@ export default {
 
     const todos = ref([])
     
+    // 优先级配置
+    const priorityOptions = ref([
+      { value: 'high', label: '高优先级', icon: '🔥', description: '紧急且重要，需要立即处理' },
+      { value: 'medium', label: '中优先级', icon: '⚡', description: '重要但不紧急，需要安排时间处理' },
+      { value: 'low', label: '低优先级', icon: '💤', description: '不紧急，可以稍后处理' }
+    ])
+    const selectedPriority = ref('medium')
+    
     // 日期验证相关状态
     const showDateWarning = ref(false)
     const pendingTask = ref(null)
@@ -225,9 +249,13 @@ export default {
             }
           }
           
+          // 使用用户选择的优先级覆盖自动判断的优先级
+          parsedTodo.priority = selectedPriority.value
+          
           // 直接创建任务
           await createTask(parsedTodo)
           nlInput.value = ''
+          selectedPriority.value = 'medium' // 重置为默认优先级
         } catch (error) {
           console.error('添加任务失败:', error)
         }
@@ -267,12 +295,15 @@ export default {
         const originalDate = dayjs(pendingTask.value.dueDate)
         const postponedDate = originalDate.add(1, 'month').format('YYYY-MM-DD')
         
+        // 使用用户选择的优先级
+        pendingTask.value.priority = selectedPriority.value
         pendingTask.value.dueDate = postponedDate
         await createTask(pendingTask.value)
         
         // 重置状态
         resetPendingTask()
         nlInput.value = ''
+        selectedPriority.value = 'medium' // 重置为默认优先级
       }
     }
 
@@ -380,6 +411,8 @@ export default {
       isLoading,
       showDateWarning,
       pendingTaskDate,
+      priorityOptions,
+      selectedPriority,
       addTodoFromNL,
       toggleTodo,
       editTodo,
@@ -474,6 +507,60 @@ h1 {
   font-size: 14px;
   resize: vertical;
   margin-bottom: 12px;
+}
+
+.priority-selector {
+  margin-bottom: 12px;
+}
+
+.priority-selector label {
+  font-size: 14px;
+  color: #64748b;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.priority-dropdown {
+  width: 200px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: white;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
+}
+
+.priority-dropdown:hover {
+  border-color: #cbd5e1;
+}
+
+.priority-dropdown:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* 下拉选项样式 */
+.priority-dropdown option {
+  padding: 8px 12px;
+}
+
+.priority-dropdown option.priority-high {
+  color: #ef4444;
+}
+
+.priority-dropdown option.priority-medium {
+  color: #f59e0b;
+}
+
+.priority-dropdown option.priority-low {
+  color: #10b981;
 }
 
 .add-btn {
