@@ -97,6 +97,10 @@
                 {{ getPriorityText(todo.priority) }}
               </span>
             </p>
+            <p class="todo-dates">
+              <span class="date-info">创建: {{ formatDateTime(todo.created_at) }}</span>
+              <span v-if="todo.completed" class="date-info">完成: {{ formatDateTime(todo.updated_at) }}</span>
+            </p>
           </div>
           <div class="todo-actions">
             <button @click="editTodo(todo)" class="edit-btn">编辑</button>
@@ -579,6 +583,11 @@ export default {
 
     const formatDate = (date) => dayjs(date).format('MM月DD日')
 
+    const formatDateTime = (dateTime) => {
+      if (!dateTime) return ''
+      return dayjs(dateTime).format('YYYY-MM-DD HH:mm')
+    }
+
     const getPriorityText = (priority) => {
       const map = { high: '高', medium: '中', low: '低' }
       return map[priority]
@@ -632,6 +641,7 @@ export default {
       cancelEdit,
       deleteTodo,
       formatDate,
+      formatDateTime,
       getPriorityText,
       handleLogout,
       confirmPostpone,
@@ -834,6 +844,32 @@ h1 {
   color: #64748b;
   display: flex;
   gap: 12px;
+}
+
+.todo-dates {
+  font-size: 11px;
+  color: #94a3b8;
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.date-info {
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.todo-dates {
+  font-size: 11px;
+  color: #94a3b8;
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.date-info {
+  font-size: 10px;
+  color: #94a3b8;
 }
 
 .priority-high { color: #ef4444; }

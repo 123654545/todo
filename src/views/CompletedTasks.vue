@@ -53,6 +53,9 @@
               <span :class="`priority-badge priority-${task.priority}`">
                 {{ getPriorityText(task.priority) }}
               </span>
+              <span class="creation-time">
+                创建于: {{ formatDateTime(task.created_at) }}
+              </span>
               <span class="completion-time">
                 完成于: {{ formatCompletionTime(task.completedAt) }}
               </span>
@@ -234,6 +237,11 @@ export default {
 
     const formatDate = (date) => dayjs(date).format('MM月DD日')
     
+    const formatDateTime = (dateTime) => {
+      if (!dateTime) return ''
+      return dayjs(dateTime).format('YYYY-MM-DD HH:mm')
+    }
+    
     const formatCompletionTime = (time) => {
       if (!time) return '未知时间'
       return dayjs(time).format('MM月DD日 HH:mm')
@@ -260,6 +268,7 @@ export default {
       viewAllTasks,
       handleLogout,
       formatDate,
+      formatDateTime,
       formatCompletionTime,
       getPriorityText
     }
@@ -408,7 +417,7 @@ h1 {
   flex-wrap: wrap;
 }
 
-.due-date, .completion-time {
+.due-date, .creation-time, .completion-time {
   color: #94a3b8;
   font-size: 14px;
 }

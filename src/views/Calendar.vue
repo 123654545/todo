@@ -60,6 +60,16 @@
             <span>{{ taskDetailContent.dueDate }} {{ taskDetailContent.dueTime }}</span>
           </div>
           
+          <div v-if="taskDetailContent.createdDate" class="info-item">
+            <label>创建时间：</label>
+            <span>{{ taskDetailContent.createdDate }}</span>
+          </div>
+          
+          <div v-if="taskDetailContent.completedDate" class="info-item">
+            <label>完成时间：</label>
+            <span>{{ taskDetailContent.completedDate }}</span>
+          </div>
+          
           <div class="info-item">
             <label>优先级：</label>
             <span :class="`priority-${selectedTask.priority}`">
@@ -263,6 +273,8 @@ export default {
         title: task.title,
         dueDate: formatDate(task.dueDate),
         dueTime: task.dueTime || '全天',
+        createdDate: task.completed ? null : formatDateTime(task.created_at),
+        completedDate: task.completed ? formatDateTime(task.updated_at) : null,
         priority: getPriorityText(task.priority),
         status: statusText,
         nluRaw: task.nluRaw
@@ -273,6 +285,12 @@ export default {
     const formatDate = (dateString) => {
       if (!dateString) return '未设置'
       return dayjs(dateString).format('YYYY年MM月DD日')
+    }
+    
+    // 格式化日期时间
+    const formatDateTime = (dateTime) => {
+      if (!dateTime) return ''
+      return dayjs(dateTime).format('YYYY-MM-DD HH:mm')
     }
     
     // 获取优先级文本
@@ -318,7 +336,10 @@ export default {
       taskDetailContent,
       handleTaskClick,
       closeDetailModal,
-      handleKeydown
+      handleKeydown,
+      formatDate,
+      formatDateTime,
+      getPriorityText
     }
   }
 }
