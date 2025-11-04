@@ -183,10 +183,14 @@ export default {
       }
     }
 
-    // 计算周统计
+    // 计算周统计（中国习惯：周一为一周第一天）
     const calculateWeeklyStats = () => {
       const weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
-      const startOfWeek = dayjs().startOf('week')
+      // 调整周起始日：周一为一周第一天
+      const today = dayjs()
+      const currentDay = today.day()
+      const daysToMonday = currentDay === 0 ? -6 : 1 - currentDay
+      const startOfWeek = today.add(daysToMonday, 'day').startOf('day')
       
       weeklyStats.value = weekDays.map((day, index) => {
         const dayDate = startOfWeek.add(index, 'day')

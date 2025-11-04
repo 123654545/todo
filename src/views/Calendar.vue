@@ -131,11 +131,13 @@ export default {
       
       const days = []
       
-      // 上个月的最后几天
+      // 上个月的最后几天（中国习惯：周一为一周第一天）
       const prevMonthLastDay = new Date(year, month, 0).getDate()
       const firstDayOfWeek = firstDay.getDay()
+      // 调整周起始日：0(日) -> 6, 1(一) -> 0, 2(二) -> 1, ..., 6(六) -> 5
+      const adjustedFirstDayOfWeek = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1
       
-      for (let i = firstDayOfWeek - 1; i >= 0; i--) {
+      for (let i = adjustedFirstDayOfWeek - 1; i >= 0; i--) {
         const date = new Date(year, month - 1, prevMonthLastDay - i)
         days.push({ date, isCurrentMonth: false })
       }

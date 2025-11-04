@@ -89,13 +89,17 @@ export function parseDateTime(text) {
         const offset = dateKeywords[keyword]
         
         if (keyword.includes('周') || keyword.includes('星期')) {
-          // 星期处理
+          // 星期处理（中国习惯：周一为一周第一天）
           const today = dayjs()
           const currentDay = today.day()
+          // 调整星期映射：周日(0) -> 6, 周一(1) -> 0, 周二(2) -> 1, ..., 周六(6) -> 5
+          const adjustedCurrentDay = currentDay === 0 ? 6 : currentDay - 1
           let targetDay = offset
+          // 调整目标星期：周日(0) -> 6, 周一(1) -> 0, 周二(2) -> 1, ..., 周六(6) -> 5
+          const adjustedTargetDay = targetDay === 0 ? 6 : targetDay - 1
           
           // 计算距离目标星期还有几天
-          let daysToAdd = targetDay - currentDay
+          let daysToAdd = adjustedTargetDay - adjustedCurrentDay
           if (daysToAdd < 0) daysToAdd += 7
           
           date = today.add(daysToAdd, 'day').format('YYYY-MM-DD')

@@ -476,13 +476,18 @@ export default {
         
         console.log('现有档案检查结果:', existingProfile)
         
+        // 验证性别字段，确保符合数据库约束
+        const validGender = ['male', 'female', 'other', ''].includes(userProfile.value.gender) 
+          ? userProfile.value.gender 
+          : '';
+        
         const profileData = {
           user_id: currentUser.value.id,
           display_name: userProfile.value.display_name || '',
           bio: userProfile.value.bio || '',
           phone: userProfile.value.phone || '',
           date_of_birth: userProfile.value.date_of_birth || null,
-          gender: userProfile.value.gender || '',
+          gender: validGender,
           country: userProfile.value.country || '',
           city: userProfile.value.city || '',
           timezone: userProfile.value.timezone || 'Asia/Shanghai',
