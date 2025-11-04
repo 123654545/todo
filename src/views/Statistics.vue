@@ -2,7 +2,16 @@
   <div class="statistics-container">
     <header class="header">
       <h1>📊 任务统计</h1>
-      <button class="back-btn" @click="$router.push('/todos')">返回列表</button>
+      <div class="header-actions">
+        <button 
+          class="refresh-btn" 
+          @click="handleRefresh" 
+          :disabled="isRefreshing"
+        >
+          {{ isRefreshing ? '🔄 刷新中...' : '🔄 刷新' }}
+        </button>
+        <button class="back-btn" @click="$router.push('/todos')">返回列表</button>
+      </div>
     </header>
 
     <div class="stats-content">
@@ -160,10 +169,45 @@ export default {
       return '#F44336'
     })
 
+    // 数据验证和清理函数
+    const validateAndCleanData = (todos) => {
+      return todos.map(todo => {
+        // 验证必填字段
+        if (!todo.id || !todo.created_at) {
+          console.warn('发现无效任务数据，跳过:', todo)
+          return null
+        }
+        
+        // 清理和标准化数据
+        return {
+          ...todo,
+          // 确保日期格式正确
+          created_at: dayjs(todo.created_at).isValid() ? todo.created_at : new Date().toISOString(),
+          updated_at: todo.updated_at && dayjs(todo.updated_at).isValid() ? todo.updated_at : todo.created_at,
+          due_date: todo.due_date && dayjs(todo.due_date).isValid() ? todo.due_date : null,
+          // 确保布尔值正确
+          completed: !!todo.completed
+        }
+      }).filter(Boolean) // 过滤掉无效数据
+    }
+
     // 加载任务数据
     const loadTodos = async () => {
       try {
-        todos.value = await TodoService.getTodos()
+        const rawTodos = await TodoService.getTodos()
+        // 应用数据验证和清理
+        todos.value = validateAndCleanData(rawTodos)
+        
+        // 详细调试：显示所有任务数据
+        console.log('=== 所有任务数据 ===')
+        todos.value.forEach((todo, index) => {
+          console.log(`${index + 1}. ${todo.title}`)
+          console.log(`   创建时间: ${dayjs(todo.created_at).format('YYYY-MM-DD HH:mm')}`)
+          console.log(`   更新时间: ${todo.updated_at ? dayjs(todo.updated_at).format('YYYY-MM-DD HH:mm') : '无'}`)
+          console.log(`   完成状态: ${todo.completed ? '已完成' : '未完成'}`)
+          console.log('   ---')
+        })
+        
         calculateStats()
         calculateWeeklyStats()
       } catch (error) {
@@ -189,43 +233,178 @@ export default {
       }
     }
 
-    // 计算周统计（中国习惯：周一为一周第一天）
+    // 全新重写：简单直接的周统计逻辑
     const calculateWeeklyStats = () => {
-      const weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
-      // 调整周起始日：周一为一周第一天
-      const today = dayjs()
-      const currentDay = today.day()
-      const daysToMonday = currentDay === 0 ? -6 : 1 - currentDay
-      const startOfWeek = today.add(daysToMonday, 'day').startOf('day')
-      
-      weeklyStats.value = weekDays.map((day, index) => {
-        const dayDate = startOfWeek.add(index, 'day')
-        const dayTodos = todos.value.filter(todo => 
-          dayjs(todo.created_at).isSame(dayDate, 'day')
-        )
-        const completed = dayTodos.filter(todo => todo.completed).length
-        const total = dayTodos.length
+      try {
+        const weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
         
-        return {
+        // 获取本周日期范围（周一至周日）
+        const today = dayjs()
+        const startOfWeek = today.startOf('week').add(1, 'day') // 周一
+        const endOfWeek = startOfWeek.add(6, 'day') // 周日
+        
+        console.log('本周日期范围:', startOfWeek.format('YYYY-MM-DD'), '至', endOfWeek.format('YYYY-MM-DD'))
+        
+        // 初始化周统计数据
+        const weekData = {}
+        weekDays.forEach((day, index) => {
+          const dayDate = startOfWeek.add(index, 'day')
+          weekData[dayDate.format('YYYY-MM-DD')] = {
+            day: day,
+            date: dayDate,
+            createdTasks: [],
+            completedTasks: []
+          }
+        })
+        
+        // 遍历所有任务，按日期分类（与日历完全保持一致）
+        todos.value.forEach(todo => {
+          // 使用截止日期（due_date）来匹配日历的显示逻辑
+          const dueDate = todo.due_date ? dayjs(todo.due_date).format('YYYY-MM-DD') : null
+          const updatedDate = todo.updated_at ? dayjs(todo.updated_at).format('YYYY-MM-DD') : null
+          
+          // 如果任务截止日期在本周内，计入任务（与日历显示一致）
+          if (dueDate && weekData[dueDate]) {
+            weekData[dueDate].createdTasks.push(todo)
+          }
+          
+          // 如果任务完成日期在本周内，计入完成任务
+          if (todo.completed && updatedDate && weekData[updatedDate]) {
+            weekData[updatedDate].completedTasks.push(todo)
+          }
+        })
+        
+        // 调试：显示每个日期的任务详情
+        console.log('=== 详细任务分布 ===')
+        weekDays.forEach((day, index) => {
+          const dayDate = startOfWeek.add(index, 'day')
+          const dateKey = dayDate.format('YYYY-MM-DD')
+          const dayData = weekData[dateKey]
+          
+          if (dayData.createdTasks.length > 0) {
+            console.log(`
+${day} (${dateKey}) 的任务:`)
+            dayData.createdTasks.forEach((todo, i) => {
+              console.log(`  ${i + 1}. ${todo.title}`)
+              console.log(`     截止日期: ${todo.due_date}`)
+              console.log(`     创建日期: ${todo.created_at}`)
+              console.log(`     完成状态: ${todo.completed ? '已完成' : '未完成'}`)
+            })
+          }
+        })
+        
+        // 生成最终统计结果
+        weeklyStats.value = weekDays.map((day, index) => {
+          const dayDate = startOfWeek.add(index, 'day')
+          const dateKey = dayDate.format('YYYY-MM-DD')
+          const dayData = weekData[dateKey] || { createdTasks: [], completedTasks: [] }
+          
+          // 关键修复：只统计截止日期在该日的任务（与日历保持一致）
+          const total = dayData.createdTasks.length
+          // 只统计在该日完成的任务
+          const completed = dayData.createdTasks.filter(todo => 
+            todo.completed && todo.updated_at && 
+            dayjs(todo.updated_at).format('YYYY-MM-DD') === dateKey
+          ).length
+          
+          // 调试输出
+          if (total > 0 || completed > 0) {
+            console.log(`${day} (${dateKey}): 总任务${total}个, 当日完成${completed}个`)
+            console.log('任务详情:', dayData.createdTasks.map(t => ({
+              title: t.title,
+              completed: t.completed,
+              updated_at: t.updated_at
+            })))
+          }
+          
+          return {
+            day: day,
+            date: dayDate,
+            completed: completed,
+            total: total,
+            completionRate: total > 0 ? (completed / total) * 100 : 0
+          }
+        })
+        
+        // 验证数据
+        const totalCreated = weeklyStats.value.reduce((sum, day) => sum + day.total, 0)
+        console.log('周统计验证: 总创建任务数 =', totalCreated)
+        
+      } catch (error) {
+        console.error('计算周统计数据时出错:', error)
+        // 返回默认数据
+        weeklyStats.value = weekDays.map(day => ({
           day: day,
-          date: dayDate,
-          completed: completed,
-          total: total,
-          completionRate: total > 0 ? (completed / total) * 100 : 0
+          date: dayjs(),
+          completed: 0,
+          total: 0,
+          completionRate: 0
+        }))
+      }
+    }
+
+    // 实时数据更新和验证
+    const refreshData = async () => {
+      try {
+        await loadTodos()
+        
+        // 数据完整性检查
+        const dataIntegrityCheck = () => {
+          const totalTasks = todos.value.length
+          const completedTasks = todos.value.filter(todo => todo.completed).length
+          const pendingTasks = todos.value.filter(todo => !todo.completed).length
+          
+          // 验证数据一致性
+          if (totalTasks !== completedTasks + pendingTasks) {
+            console.warn('数据不一致，重新计算统计')
+            calculateStats()
+          }
+          
+          // 验证周统计数据
+          const weeklyTotal = weeklyStats.value.reduce((sum, day) => sum + day.total, 0)
+          if (weeklyTotal > totalTasks) {
+            console.warn('周统计数据异常，重新计算')
+            calculateWeeklyStats()
+          }
         }
-      })
+        
+        dataIntegrityCheck()
+      } catch (error) {
+        console.error('刷新数据时出错:', error)
+      }
     }
 
 
 
+    // 添加手动刷新按钮到模板
+    const isRefreshing = ref(false)
+
+    const handleRefresh = async () => {
+      isRefreshing.value = true
+      await refreshData()
+      isRefreshing.value = false
+    }
+
     onMounted(() => {
       loadTodos()
+      
+      // 添加定时刷新机制（每30秒检查一次）
+      const refreshInterval = setInterval(() => {
+        refreshData()
+      }, 30000)
+
+      // 组件卸载时清除定时器
+      return () => {
+        clearInterval(refreshInterval)
+      }
     })
 
     return {
       stats,
       weeklyStats,
-      completionColor
+      completionColor,
+      isRefreshing,
+      handleRefresh
     }
   }
 }
@@ -251,6 +430,31 @@ export default {
   margin: 0;
   font-size: 1.5rem;
   color: #333;
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.refresh-btn {
+  background: #4CAF50;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.refresh-btn:hover:not(:disabled) {
+  background: #45a049;
+}
+
+.refresh-btn:disabled {
+  background: #cccccc;
+  cursor: not-allowed;
 }
 
 .back-btn {
