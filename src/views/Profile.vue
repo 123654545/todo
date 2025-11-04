@@ -385,7 +385,7 @@ export default {
         await loadTodos()
         await loadUserSettings()
         await loadUserProfile()
-        await calculateStats()
+        // calculateStats() 已在 loadTodos() 内部调用，无需重复调用
       } catch (error) {
         console.error('获取用户失败:', error)
         router.push('/login')
@@ -487,7 +487,10 @@ export default {
     // 加载任务列表
     const loadTodos = async () => {
       try {
+        console.log('开始加载任务数据...')
         const todoData = await TodoService.getTodos()
+        console.log('获取到的任务数据:', todoData)
+        
         todos.value = todoData.map(todo => ({
           id: todo.id,
           title: todo.title,
@@ -500,6 +503,10 @@ export default {
           updated_at: todo.updated_at,
           isOverdue: todo.due_date && !todo.completed && dayjs(todo.due_date).isBefore(dayjs(), 'day')
         }))
+        
+        console.log('处理后的任务列表:', todos.value)
+        console.log('逾期任务:', todos.value.filter(t => t.isOverdue))
+        
         // 数据加载完成后立即计算统计信息
         calculateStats()
       } catch (error) {
@@ -543,14 +550,24 @@ export default {
     
     // 计算统计信息
     const calculateStats = () => {
+      console.log('开始计算统计信息...')
+      console.log('当前任务总数:', todos.value.length)
+      
       const total = todos.value.length
       const completed = todos.value.filter(todo => todo.completed).length
-      const overdue = todos.value.filter(todo => {
-        if (!todo.completed && todo.due_date) {
-          return dayjs(todo.due_date).isBefore(dayjs(), 'day')
+      
+      // 详细检查逾期计算
+      const overdueTasks = todos.value.filter(todo => {
+        if (!todo.completed && todo.dueDate) {
+          const isOverdue = dayjs(todo.dueDate).isBefore(dayjs(), 'day')
+          console.log(`任务"${todo.title}": 完成=${todo.completed}, 截止=${todo.dueDate}, 逾期=${isOverdue}`)
+          return isOverdue
         }
         return false
-      }).length
+      })
+      
+      const overdue = overdueTasks.length
+      console.log('计算出的逾期任务数量:', overdue)
       
       stats.value = {
         totalTasks: total,
@@ -558,6 +575,8 @@ export default {
         overdueTasks: overdue,
         completionRate: total > 0 ? Math.round((completed / total) * 100) : 0
       }
+      
+      console.log('最终统计结果:', stats.value)
       
       calculateTrends()
       generateRecentActivities()

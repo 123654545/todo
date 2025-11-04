@@ -143,6 +143,7 @@ import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { parseTodoFromNL } from '../utils/dateParser'
 import { AuthService, TodoService } from '../config/storage.js'
+import { supabase } from '../config/supabase.js'
 
 export default {
   name: 'TodoList',
@@ -168,12 +169,36 @@ export default {
       { value: 'medium', label: '中优先级', icon: '⚡', description: '重要但不紧急，需要安排时间处理' },
       { value: 'low', label: '低优先级', icon: '💤', description: '不紧急，可以稍后处理' }
     ])
-    const selectedPriority = ref('medium')
+    const selectedPriority = ref('medium') // 初始值，会被loadUserSettings覆盖 // 初始值，会被loadUserSettings覆盖
     
     // 日期验证相关状态
     const showDateWarning = ref(false)
     const pendingTask = ref(null)
     const pendingTaskDate = ref('')
+
+    // 加载用户设置
+    const loadUserSettings = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('user_settings')
+          .select('default_priority')
+          .eq('user_id', currentUser.value.id)
+          .limit(1)
+        
+        if (error) throw error
+        
+        // 如果有设置记录且设置了默认优先级，则使用用户设置
+        if (data && data.length > 0 && data[0].default_priority) {
+          selectedPriority.value = data[0].default_priority
+        }
+        // 如果没有设置记录，保持默认的'medium'值
+        console.log('加载用户设置完成，当前优先级:', selectedPriority.value)
+      } catch (error) {
+        console.error('加载用户设置失败:', error)
+        // 出错时保持默认值
+        selectedPriority.value = 'medium'
+      }
+    }
 
     // 获取当前用户
     const getCurrentUser = async () => {
@@ -184,6 +209,7 @@ export default {
           router.push('/login')
           return
         }
+        await loadUserSettings()
         await loadTodos()
       } catch (error) {
         console.error('获取用户失败:', error)
@@ -255,7 +281,7 @@ export default {
           // 直接创建任务
           await createTask(parsedTodo)
           nlInput.value = ''
-          selectedPriority.value = 'medium' // 重置为默认优先级
+          console.log('任务创建完成，优先级设置为:', selectedPriority.value)
         } catch (error) {
           console.error('添加任务失败:', error)
         }
@@ -303,7 +329,6 @@ export default {
         // 重置状态
         resetPendingTask()
         nlInput.value = ''
-        selectedPriority.value = 'medium' // 重置为默认优先级
       }
     }
 
@@ -358,7 +383,7 @@ export default {
           // 更新本地状态
           Object.assign(editingTodo.value, editForm.value)
           editingTodo.value = null
-          editForm.value = { title: '', dueDate: '', priority: 'medium' }
+          editForm.value = { title: '', dueDate: '', priority: selectedPriority.value }
         } catch (error) {
           console.error('更新任务失败:', error)
         }
@@ -367,7 +392,7 @@ export default {
 
     const cancelEdit = () => {
       editingTodo.value = null
-      editForm.value = { title: '', dueDate: '', priority: 'medium' }
+      editForm.value = { title: '', dueDate: '', priority: selectedPriority.value }
     }
 
     const deleteTodo = async (id) => {
@@ -399,6 +424,14 @@ export default {
     // 组件挂载时获取用户信息
     onMounted(() => {
       getCurrentUser()
+      
+      // 监听设置变化事件
+      window.addEventListener('settingsUpdated', async (event) => {
+        if (event.detail && event.detail.defaultPriority) {
+          selectedPriority.value = event.detail.defaultPriority
+          console.log('设置已更新，当前优先级:', selectedPriority.value)
+        }
+      })
     })
 
     return {
