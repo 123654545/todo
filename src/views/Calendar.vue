@@ -1,5 +1,5 @@
 <template>
-  <div class="calendar-container">
+  <div class="calendar-container" @keydown="handleKeydown">
     <header class="header">
       <h1>日历视图</h1>
       <button class="back-btn" @click="$router.push('/todos')">返回列表</button>
@@ -29,12 +29,51 @@
             <div 
               v-for="todo in getTodosForDay(day.date)" 
               :key="todo.id"
-              :class="['todo-badge', `priority-${todo.priority}`]"
-              :title="todo.title"
+              :class="['todo-badge', `priority-${todo.priority}`, { selected: selectedTask?.id === todo.id }]"
+              @click="handleTaskClick(todo)"
             >
               <span class="todo-title">{{ todo.title }}</span>
               <span v-if="todo.dueTime" class="todo-time">{{ todo.dueTime }}</span>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 任务详情弹窗 -->
+    <div v-if="showTaskDetails" class="detail-modal-overlay" @click="closeDetailModal">
+      <div class="detail-modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>任务详情</h3>
+          <button @click="closeDetailModal" class="close-btn">×</button>
+        </div>
+        
+        <div class="task-info" v-if="taskDetailContent">
+          <div class="info-item">
+            <label>标题：</label>
+            <span>{{ taskDetailContent.title }}</span>
+          </div>
+          
+          <div class="info-item">
+            <label>截止时间：</label>
+            <span>{{ taskDetailContent.dueDate }} {{ taskDetailContent.dueTime }}</span>
+          </div>
+          
+          <div class="info-item">
+            <label>优先级：</label>
+            <span :class="`priority-${selectedTask.priority}`">
+              {{ taskDetailContent.priority }}
+            </span>
+          </div>
+          
+          <div class="info-item">
+            <label>状态：</label>
+            <span>{{ taskDetailContent.status }}</span>
+          </div>
+          
+          <div v-if="taskDetailContent.nluRaw" class="info-item">
+            <label>原始输入：</label>
+            <span class="nlu-text">{{ taskDetailContent.nluRaw }}</span>
           </div>
         </div>
       </div>
@@ -78,6 +117,10 @@ export default {
     const todos = ref([])
     const currentUser = ref(null)
     const isLoading = ref(true)
+    
+    // 交互状态管理
+    const selectedTask = ref(null)
+    const showTaskDetails = ref(false)
     
     const calendarDays = computed(() => {
       const year = currentDate.value.getFullYear()
@@ -189,6 +232,52 @@ export default {
       return colors[priority] || '#f3f4f6'
     }
     
+    // 任务详情内容计算
+    const taskDetailContent = computed(() => {
+      if (!selectedTask.value) return null
+      
+      const task = selectedTask.value
+      return {
+        title: task.title,
+        dueDate: formatDate(task.dueDate),
+        dueTime: task.dueTime || '全天',
+        priority: getPriorityText(task.priority),
+        status: task.completed ? '✅ 已完成' : '🟡 进行中',
+        nluRaw: task.nluRaw
+      }
+    })
+    
+    // 格式化日期
+    const formatDate = (dateString) => {
+      if (!dateString) return '未设置'
+      return dayjs(dateString).format('YYYY年MM月DD日')
+    }
+    
+    // 获取优先级文本
+    const getPriorityText = (priority) => {
+      const map = { high: '高', medium: '中', low: '低' }
+      return map[priority] || '普通'
+    }
+    
+    // 任务点击处理
+    const handleTaskClick = (task) => {
+      selectedTask.value = task
+      showTaskDetails.value = true
+    }
+    
+    // 关闭详情弹窗
+    const closeDetailModal = () => {
+      selectedTask.value = null
+      showTaskDetails.value = false
+    }
+    
+    // 键盘事件处理
+    const handleKeydown = (event) => {
+      if (event.key === 'Escape' && showTaskDetails.value) {
+        closeDetailModal()
+      }
+    }
+    
     // 组件挂载时获取用户信息
     onMounted(() => {
       getCurrentUser()
@@ -201,7 +290,13 @@ export default {
       nextMonth,
       getTodosForDay,
       getTodoDetails,
-      isLoading
+      isLoading,
+      selectedTask,
+      showTaskDetails,
+      taskDetailContent,
+      handleTaskClick,
+      closeDetailModal,
+      handleKeydown
     }
   }
 }
@@ -357,6 +452,115 @@ h1 {
 .todo-time {
   font-size: 8px;
   opacity: 0.7;
+}
+
+/* 选中状态 */
+.todo-badge.selected {
+  border: 2px solid #3b82f6 !important;
+  background: #f0f9ff !important;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+/* 详情弹窗样式 */
+.detail-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.detail-modal-content {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+  animation: modalSlideIn 0.3s ease-out;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.modal-header h3 {
+  color: #1e293b;
+  font-size: 18px;
+  margin: 0;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #64748b;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+
+.close-btn:hover {
+  background: #f1f5f9;
+}
+
+.task-info {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.info-item {
+  display: flex;
+  align-items: flex-start;
+}
+
+.info-item label {
+  font-weight: 600;
+  color: #374151;
+  min-width: 80px;
+  font-size: 14px;
+}
+
+.info-item span {
+  color: #6b7280;
+  word-break: break-word;
+  flex: 1;
+  font-size: 14px;
+}
+
+.nlu-text {
+  font-style: italic;
+  color: #9ca3af;
+  background: #f9fafb;
+  padding: 8px;
+  border-radius: 4px;
+  border-left: 3px solid #d1d5db;
 }
 
 /* 底部导航样式 */
