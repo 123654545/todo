@@ -13,9 +13,10 @@
       </div>
 
       <div class="weekdays">
-        <div v-for="day in ['日', '一', '二', '三', '四', '五', '六']" :key="day" class="weekday">
-          {{ day }}
+        <div v-for="day in [ '一', '二', '三', '四', '五', '六', '日']" :key="day" class="weekday">
+           {{ day }}
         </div>
+          
       </div>
 
       <div class="calendar-grid">
@@ -239,12 +240,25 @@ export default {
       if (!selectedTask.value) return null
       
       const task = selectedTask.value
+      
+      // 判断任务状态：已完成、已逾期、进行中
+      let statusText = '🟡 进行中'
+      if (task.completed) {
+        statusText = '✅ 已完成'
+      } else if (task.dueDate) {
+        const now = dayjs()
+        const dueDate = dayjs(task.dueDate)
+        if (dueDate.isBefore(now, 'day')) {
+          statusText = '🔴 已逾期'
+        }
+      }
+      
       return {
         title: task.title,
         dueDate: formatDate(task.dueDate),
         dueTime: task.dueTime || '全天',
         priority: getPriorityText(task.priority),
-        status: task.completed ? '✅ 已完成' : '🟡 进行中',
+        status: statusText,
         nluRaw: task.nluRaw
       }
     })
