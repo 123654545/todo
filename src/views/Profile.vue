@@ -201,14 +201,14 @@
     </div>
 
     <!-- 任务分析面板 -->
-    <div class="analytics-section" v-if="showAnalytics">
+    <div class="analytics-section">
       <div class="section-header">
         <h3>任务分析</h3>
         <button class="toggle-btn" @click="toggleAnalytics">
           {{ showAnalytics ? '收起' : '展开' }}
         </button>
       </div>
-      <div class="analytics-content">
+      <div v-if="showAnalytics" class="analytics-content">
         <div class="analytics-grid">
           <div class="analytics-card">
             <h4>最近活动</h4>
@@ -1100,6 +1100,14 @@ export default {
         } else {
           document.documentElement.classList.remove('dark')
         }
+        
+        // 发送设置变化事件，通知其他页面更新
+        window.dispatchEvent(new CustomEvent('settingsUpdated', {
+          detail: {
+            defaultPriority: settings.value.defaultPriority,
+            darkMode: settings.value.darkMode
+          }
+        }))
         
       } catch (error) {
         console.error('保存设置失败:', error)
