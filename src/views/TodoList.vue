@@ -12,7 +12,7 @@
       <div class="search-section">
         <input 
           v-model="searchQuery" 
-          placeholder="搜索任务名称或日期..."
+          placeholder="输入任务名、日期(如：2024-01-15)或关键词"
           class="search-input"
         >
         <select v-model="searchFilter" class="filter-select">
@@ -20,6 +20,18 @@
           <option value="title">任务名</option>
           <option value="date">日期</option>
         </select>
+      </div>
+
+      <!-- 搜索结果统计 -->
+      <div class="search-stats" v-if="searchQuery.trim()">
+        找到 {{ filteredTodos.length }} 个匹配任务
+        <span v-if="searchFilter !== 'all'">（{{ searchFilter === 'title' ? '任务名' : '日期' }}筛选）</span>
+      </div>
+
+      <!-- 空结果提示 -->
+      <div v-if="filteredTodos.length === 0 && searchQuery.trim()" class="no-results">
+        <p>没有找到匹配的任务</p>
+        <button @click="clearSearch" class="clear-search-btn">清除搜索条件</button>
       </div>
 
       <!-- 自然语言输入框 -->
@@ -272,6 +284,123 @@ export default {
       })
     })
 
+    // 智能预处理函数 - 优化关键词提取和语义保持
+    const enhancedPreprocess = (input) => {
+      let processed = input
+      
+      // 调试信息
+      console.log('🔍 预处理开始，输入:', input)
+      
+      // 第一步：中文数字转阿拉伯数字
+      const chineseNumbers = {
+        '一': '1', '二': '2', '三': '3', '四': '4', '五': '5',
+        '六': '6', '七': '7', '八': '8', '九': '9', '十': '10',
+        '十一': '11', '十二': '12', '十三': '13', '十四': '14', '十五': '15',
+        '十六': '16', '十七': '17', '十八': '18', '十九': '19', '二十': '20',
+        '二十一': '21', '二十二': '22', '二十三': '23', '二十四': '24', '二十五': '25',
+        '二十六': '26', '二十七': '27', '二十八': '28', '二十九': '29', '三十': '30', '三十一': '31'
+      }
+      
+      // 替换中文数字
+      Object.keys(chineseNumbers).forEach(cnNum => {
+        const regex = new RegExp(cnNum, 'g')
+        processed = processed.replace(regex, chineseNumbers[cnNum])
+      })
+      console.log('🔢 中文数字转换后:', processed)
+      
+      // 第二步：改进正则表达式匹配，精确提取事件描述
+      
+      // 1. 处理"下个月五号"模式 - 精确提取事件描述
+      const nextMonthPattern = /下个月\s*(\d+)[日号](?:\s+(.+))?/
+      const nextMonthMatch = processed.match(nextMonthPattern)
+      console.log('📅 下个月模式匹配结果:', nextMonthMatch)
+      
+      if (nextMonthMatch) {
+        const day = nextMonthMatch[1]
+        // 关键优化：如果用户没有提供事件描述，使用原始输入中的关键词
+        let taskDesc = nextMonthMatch[2]
+        if (!taskDesc) {
+          // 从原始输入中提取关键词，排除日期部分
+          const originalKeywords = input.replace(/下个月\s*[一二三四五六七八九十]+[日号]/g, '').trim()
+          taskDesc = originalKeywords || '任务'
+        }
+        const nextMonth = dayjs().add(1, 'month')
+        const maxDays = nextMonth.daysInMonth()
+        const validDay = Math.min(parseInt(day), maxDays)
+        const nextMonthDate = nextMonth.date(validDay).format('YYYY-MM-DD')
+        // 确保输出格式能被dateParser正确识别
+        processed = `${nextMonthDate} ${taskDesc}`
+        console.log('✅ 下个月模式处理结果:', processed)
+        return processed
+      }
+      
+      // 2. 处理"n个月后"模式 - 精确提取事件描述
+      const monthsLaterPattern = /(\d+)个月后(?:\s+(.+))?/
+      const monthsLaterMatch = processed.match(monthsLaterPattern)
+      console.log('📆 n个月后模式匹配结果:', monthsLaterMatch)
+      
+      if (monthsLaterMatch) {
+        const months = parseInt(monthsLaterMatch[1])
+        // 关键优化：如果用户没有提供事件描述，使用原始输入中的关键词
+        let taskDesc = monthsLaterMatch[2]
+        if (!taskDesc) {
+          // 从原始输入中提取关键词，排除日期部分
+          const originalKeywords = input.replace(/\d+个月后/g, '').trim()
+          taskDesc = originalKeywords || '任务'
+        }
+        const targetDate = dayjs().add(months, 'month').format('YYYY-MM-DD')
+        processed = `${targetDate} ${taskDesc}`
+        console.log('✅ n个月后模式处理结果:', processed)
+        return processed
+      }
+      
+      // 3. 处理"一年后"模式 - 精确提取事件描述
+      const yearLaterPattern = /一年后(?:\s+(.+))?/
+      const yearLaterMatch = processed.match(yearLaterPattern)
+      console.log('📅 一年后模式匹配结果:', yearLaterMatch)
+      
+      if (yearLaterMatch) {
+        // 关键优化：如果用户没有提供事件描述，使用原始输入中的关键词
+        let taskDesc = yearLaterMatch[1]
+        if (!taskDesc) {
+          // 从原始输入中提取关键词，排除日期部分
+          const originalKeywords = input.replace(/一年后/g, '').trim()
+          taskDesc = originalKeywords || '任务'
+        }
+        const nextYearDate = dayjs().add(1, 'year').format('YYYY-MM-DD')
+        processed = `${nextYearDate} ${taskDesc}`
+        console.log('✅ 一年后模式处理结果:', processed)
+        return processed
+      }
+      
+      // 4. 处理其他常见事件类型的关键词提取
+      const eventKeywords = ['开会', '会议', '项目', '评审', '生日', '约会', '聚餐', '旅行', '学习', '工作', '购物']
+      const foundKeywords = eventKeywords.filter(keyword => input.includes(keyword))
+      
+      if (foundKeywords.length > 0) {
+        console.log('🎯 检测到事件关键词:', foundKeywords)
+        // 如果输入中包含特定事件关键词，确保这些关键词被保留
+        const originalKeywords = input.trim()
+        processed = `${dayjs().format('YYYY-MM-DD')} ${originalKeywords}`
+        console.log('✅ 关键词模式处理结果:', processed)
+        return processed
+      }
+      
+      // 5. 如果预处理没有改变输入，添加更详细的调试信息
+      if (processed === input) {
+        console.log('⚠️ 预处理未匹配任何模式，详细分析：')
+        console.log('- 输入内容:', input)
+        console.log('- 可能的问题:')
+        console.log('  * 正则表达式不匹配输入格式')
+        console.log('  * 中文数字识别失败')
+        console.log('  * 空格或标点符号影响匹配')
+        console.log('  * 输入格式不符合预期模式')
+      }
+      
+      console.log('📊 预处理最终结果:', processed)
+      return processed
+    }
+
     const addTodoFromNL = async () => {
       if (nlInput.value.trim()) {
         try {
@@ -279,8 +408,18 @@ export default {
           const originalText = nlInput.value
           nlInput.value = '解析中...'
           
+          // 新增：智能预处理
+          const preprocessedInput = enhancedPreprocess(originalText)
+          
+          // 调试信息：显示预处理结果
+          console.log('原始输入:', originalText)
+          console.log('预处理后:', preprocessedInput)
+          
           // 使用智能解析
-          const parsedTodo = await smartParseTodo(originalText)
+          const parsedTodo = await smartParseTodo(preprocessedInput)
+          
+          // 调试信息：显示解析结果
+          console.log('解析结果:', parsedTodo)
           
           // 恢复输入框内容
           nlInput.value = ''
@@ -447,6 +586,12 @@ export default {
         console.error('退出失败:', error)
         router.push('/login')
       }
+    }
+
+    // 清除搜索条件
+    const clearSearch = () => {
+      searchQuery.value = ''
+      searchFilter.value = 'all'
     }
 
     // 组件挂载时获取用户信息
