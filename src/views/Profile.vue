@@ -458,28 +458,69 @@ export default {
     // 保存用户档案
     const saveUserProfile = async () => {
       try {
-        const { error } = await supabase
+        console.log('开始保存用户档案...')
+        console.log('当前用户ID:', currentUser.value?.id)
+        console.log('档案数据:', userProfile.value)
+        
+        // 先检查用户档案是否存在
+        const { data: existingProfile, error: checkError } = await supabase
           .from('user_profiles')
-          .upsert({
-            user_id: currentUser.value.id,
-            display_name: userProfile.value.display_name,
-            bio: userProfile.value.bio,
-            phone: userProfile.value.phone,
-            date_of_birth: userProfile.value.date_of_birth,
-            gender: userProfile.value.gender,
-            country: userProfile.value.country,
-            city: userProfile.value.city,
-            timezone: userProfile.value.timezone,
-            language: userProfile.value.language,
-            updated_at: new Date().toISOString()
-          })
+          .select('user_id')
+          .eq('user_id', currentUser.value.id)
+          .limit(1)
         
-        if (error) throw error
+        if (checkError) {
+          console.error('检查用户档案失败:', checkError)
+          throw checkError
+        }
         
+        console.log('现有档案检查结果:', existingProfile)
+        
+        const profileData = {
+          user_id: currentUser.value.id,
+          display_name: userProfile.value.display_name || '',
+          bio: userProfile.value.bio || '',
+          phone: userProfile.value.phone || '',
+          date_of_birth: userProfile.value.date_of_birth || null,
+          gender: userProfile.value.gender || '',
+          country: userProfile.value.country || '',
+          city: userProfile.value.city || '',
+          timezone: userProfile.value.timezone || 'Asia/Shanghai',
+          language: userProfile.value.language || 'zh-CN',
+          updated_at: new Date().toISOString()
+        }
+        
+        console.log('准备保存的档案数据:', profileData)
+        
+        let result
+        if (existingProfile && existingProfile.length > 0) {
+          // 更新现有档案
+          console.log('执行更新操作...')
+          result = await supabase
+            .from('user_profiles')
+            .update(profileData)
+            .eq('user_id', currentUser.value.id)
+        } else {
+          // 插入新档案
+          console.log('执行插入操作...')
+          result = await supabase
+            .from('user_profiles')
+            .insert(profileData)
+        }
+        
+        console.log('保存操作结果:', result)
+        
+        if (result.error) {
+          console.error('保存操作详细错误:', result.error)
+          throw result.error
+        }
+        
+        console.log('用户档案保存成功!')
         showProfileEdit.value = false
         alert('档案信息已保存！')
       } catch (error) {
         console.error('保存用户档案失败:', error)
+        console.error('错误详情:', JSON.stringify(error, null, 2))
         alert('保存失败，请重试')
       }
     }
