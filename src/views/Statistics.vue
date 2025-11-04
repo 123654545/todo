@@ -3,13 +3,6 @@
     <header class="header">
       <h1>📊 任务统计</h1>
       <div class="header-actions">
-        <button 
-          class="refresh-btn" 
-          @click="handleRefresh" 
-          :disabled="isRefreshing"
-        >
-          {{ isRefreshing ? '🔄 刷新中...' : '🔄 刷新' }}
-        </button>
         <button class="back-btn" @click="$router.push('/todos')">返回列表</button>
       </div>
     </header>
@@ -343,68 +336,14 @@ ${day} (${dateKey}) 的任务:`)
       }
     }
 
-    // 实时数据更新和验证
-    const refreshData = async () => {
-      try {
-        await loadTodos()
-        
-        // 数据完整性检查
-        const dataIntegrityCheck = () => {
-          const totalTasks = todos.value.length
-          const completedTasks = todos.value.filter(todo => todo.completed).length
-          const pendingTasks = todos.value.filter(todo => !todo.completed).length
-          
-          // 验证数据一致性
-          if (totalTasks !== completedTasks + pendingTasks) {
-            console.warn('数据不一致，重新计算统计')
-            calculateStats()
-          }
-          
-          // 验证周统计数据
-          const weeklyTotal = weeklyStats.value.reduce((sum, day) => sum + day.total, 0)
-          if (weeklyTotal > totalTasks) {
-            console.warn('周统计数据异常，重新计算')
-            calculateWeeklyStats()
-          }
-        }
-        
-        dataIntegrityCheck()
-      } catch (error) {
-        console.error('刷新数据时出错:', error)
-      }
-    }
-
-
-
-    // 添加手动刷新按钮到模板
-    const isRefreshing = ref(false)
-
-    const handleRefresh = async () => {
-      isRefreshing.value = true
-      await refreshData()
-      isRefreshing.value = false
-    }
-
     onMounted(() => {
       loadTodos()
-      
-      // 添加定时刷新机制（每30秒检查一次）
-      const refreshInterval = setInterval(() => {
-        refreshData()
-      }, 30000)
-
-      // 组件卸载时清除定时器
-      return () => {
-        clearInterval(refreshInterval)
-      }
     })
 
     return {
       stats,
       weeklyStats,
-      completionColor,
-      isRefreshing,
-      handleRefresh
+      completionColor
     }
   }
 }
@@ -438,24 +377,7 @@ ${day} (${dateKey}) 的任务:`)
   align-items: center;
 }
 
-.refresh-btn {
-  background: #4CAF50;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background-color 0.3s;
-}
 
-.refresh-btn:hover:not(:disabled) {
-  background: #45a049;
-}
-
-.refresh-btn:disabled {
-  background: #cccccc;
-  cursor: not-allowed;
-}
 
 .back-btn {
   background: #667eea;
