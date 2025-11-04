@@ -144,6 +144,12 @@
         📅 日历
       </button>
       <button 
+        :class="['nav-btn', { active: $route.name === 'Statistics' }]"
+        @click="$router.push('/statistics')"
+      >
+        📊 统计
+      </button>
+      <button 
         :class="['nav-btn', { active: $route.name === 'Profile' }]"
         @click="$router.push('/profile')"
       >

@@ -117,6 +117,12 @@
         📅 日历
       </button>
       <button 
+        :class="['nav-btn', { active: $route.name === 'Statistics' }]"
+        @click="$router.push('/statistics')"
+      >
+        📊 统计
+      </button>
+      <button 
         :class="['nav-btn', { active: $route.name === 'Profile' }]"
         @click="$router.push('/profile')"
       >
@@ -446,24 +452,25 @@ export default {
   left: 0;
   right: 0;
   background: white;
+  border-top: 1px solid #e2e8f0;
   display: flex;
-  padding: 10px;
-  box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+  padding: 12px;
+  gap: 8px;
 }
 
 .nav-btn {
   flex: 1;
-  background: none;
+  background: #f1f5f9;
   border: none;
-  padding: 10px;
+  padding: 12px;
+  border-radius: 8px;
   cursor: pointer;
-  font-size: 0.9rem;
-  color: #666;
+  font-size: 14px;
 }
 
 .nav-btn.active {
-  color: #667eea;
-  font-weight: bold;
+  background: #667eea;
+  color: white;
 }
 
 /* 响应式设计 */

@@ -676,20 +676,22 @@ h1 {
   background: white;
   border-top: 1px solid #e2e8f0;
   display: flex;
-  padding: 12px 0;
+  padding: 12px;
+  gap: 8px;
 }
 
 .nav-btn {
   flex: 1;
-  background: none;
+  background: #f1f5f9;
   border: none;
   padding: 12px;
-  font-size: 14px;
-  color: #64748b;
+  border-radius: 8px;
   cursor: pointer;
+  font-size: 14px;
 }
 
 .nav-btn.active {
-  color: #3b82f6;
+  background: #667eea;
+  color: white;
 }
 </style>

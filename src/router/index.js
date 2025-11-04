@@ -8,6 +8,7 @@ import AllTasks from '../views/AllTasks.vue'
 import CompletedTasks from '../views/CompletedTasks.vue'
 import OverdueTasks from '../views/OverdueTasks.vue'
 import Statistics from '../views/Statistics.vue'
+import InProgressTasks from '../views/InProgressTasks.vue'
 
 const routes = [
   {
@@ -58,6 +59,11 @@ const routes = [
     path: '/statistics',
     name: 'Statistics',
     component: Statistics
+  },
+  {
+    path: '/in-progress-tasks',
+    name: 'InProgressTasks',
+    component: InProgressTasks
   }
 ]
 

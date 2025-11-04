@@ -95,6 +95,12 @@
         📅 日历
       </button>
       <button 
+        :class="['nav-btn', { active: $route.name === 'Statistics' }]"
+        @click="$router.push('/statistics')"
+      >
+        📊 统计
+      </button>
+      <button 
         :class="['nav-btn', { active: $route.name === 'Profile' }]"
         @click="$router.push('/profile')"
       >
@@ -588,7 +594,8 @@ h1 {
   background: white;
   border-top: 1px solid #e2e8f0;
   display: flex;
-  padding: 8px;
+  padding: 12px;
+  gap: 8px;
   z-index: 1000;
 }
 
@@ -597,15 +604,9 @@ h1 {
   background: #f1f5f9;
   border: none;
   padding: 12px;
-  margin: 0 4px;
   border-radius: 8px;
   cursor: pointer;
   font-size: 14px;
-  transition: all 0.2s;
-}
-
-.nav-btn:hover {
-  background: #e2e8f0;
 }
 
 .nav-btn.active {

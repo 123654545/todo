@@ -78,15 +78,13 @@
           </div>
         </div>
       </div>
-      <div class="stat-card clickable" @click="goToStatistics">
-        <div class="stat-icon">📈</div>
+      <div class="stat-card clickable" @click="goToInProgressTasks">
+        <div class="stat-icon">⏳</div>
         <div class="stat-content">
-          <h3>{{ stats.completionRate }}%</h3>
-          <p>完成率</p>
-          <div class="stat-trend" v-if="stats.trends.rate !== 0">
-            <span :class="stats.trends.rate > 0 ? 'trend-up' : 'trend-down'">
-              {{ stats.trends.rate > 0 ? '↗' : '↘' }} {{ Math.abs(stats.trends.rate) }}%
-            </span>
+          <h3>{{ inProgressCount }}</h3>
+          <p>进行中任务</p>
+          <div class="stat-trend" v-if="inProgressCount > 0">
+            <span class="trend-up">↗ {{ inProgressCount }}</span>
           </div>
           <div class="click-hint">点击查看详情 →</div>
         </div>
@@ -301,6 +299,12 @@
         @click="$router.push('/calendar')"
       >
         📅 日历
+      </button>
+      <button 
+        :class="['nav-btn', { active: $route.name === 'Statistics' }]"
+        @click="$router.push('/statistics')"
+      >
+        📊 统计
       </button>
       <button 
         :class="['nav-btn', { active: $route.name === 'Profile' }]"
@@ -601,6 +605,7 @@ export default {
       
       const total = todos.value.length
       const completed = todos.value.filter(todo => todo.completed).length
+      const inProgress = todos.value.filter(todo => !todo.completed).length
       
       // 详细检查逾期计算
       const overdueTasks = todos.value.filter(todo => {
@@ -628,6 +633,11 @@ export default {
       generateRecentActivities()
       calculateUserLevel() // 计算用户等级和进度
     }
+    
+    // 计算进行中任务数量
+    const inProgressCount = computed(() => {
+      return todos.value.filter(todo => !todo.completed).length
+    })
     
     // 用户姓名首字母
     const userInitials = computed(() => {
@@ -1135,6 +1145,11 @@ export default {
       router.push('/statistics')
     }
     
+    // 跳转到进行中任务页面
+    const goToInProgressTasks = () => {
+      router.push('/in-progress-tasks')
+    }
+    
     const toggleAnalytics = () => {
       showAnalytics.value = !showAnalytics.value
     }
@@ -1227,12 +1242,14 @@ export default {
       showAchievements,
       showTaskDetails,
       goToStatistics,
+      goToInProgressTasks,
       toggleAnalytics,
       saveAllSettings,
       showAnalytics,
       userLevel,
       userLevelText,
       levelProgress,
+      inProgressCount,
       recentActivities,
       showAvatarMenu,
       deleteAvatar,
@@ -2041,7 +2058,8 @@ input:checked + .slider:before {
   background: white;
   border-top: 1px solid #e2e8f0;
   display: flex;
-  padding: 8px;
+  padding: 12px;
+  gap: 8px;
   z-index: 1000;
 }
 
@@ -2050,15 +2068,9 @@ input:checked + .slider:before {
   background: #f1f5f9;
   border: none;
   padding: 12px;
-  margin: 0 4px;
   border-radius: 8px;
   cursor: pointer;
   font-size: 14px;
-  transition: all 0.2s;
-}
-
-.nav-btn:hover {
-  background: #e2e8f0;
 }
 
 .nav-btn.active {
