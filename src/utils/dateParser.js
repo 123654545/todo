@@ -198,8 +198,10 @@ export function determinePriority(parsed) {
   return 'low'
 }
 
+
+
 /**
- * 完整的自然语言任务解析
+ * 完整的自然语言任务解析（传统方法）
  * @param {string} text - 用户输入
  * @returns {Object} 解析后的任务数据
  */
@@ -212,6 +214,18 @@ export function parseTodoFromNL(text) {
     dueDate: parsed.date,
     dueTime: parsed.time,
     priority,
-    nluRaw: text // 保存原始输入用于调试
+    category: 'general',
+    description: '',
+    nluRaw: text, // 保存原始输入用于调试
+    parsedBy: 'Traditional'
   }
+}
+
+/**
+ * 智能任务解析 - 主入口函数
+ * @param {string} text - 用户输入
+ * @returns {Promise<Object>} 解析后的任务数据
+ */
+export async function smartParseTodo(text) {
+  return parseTodoFromNL(text)
 }

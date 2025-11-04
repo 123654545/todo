@@ -79,7 +79,7 @@
             <h3>{{ todo.title }}</h3>
             <p class="todo-meta">
               <span v-if="todo.dueDate">截止: {{ formatDate(todo.dueDate) }}</span>
-      <span v-if="todo.dueTime"> {{ todo.dueTime }}</span>
+              <span v-if="todo.dueTime"> {{ todo.dueTime }}</span>
               <span v-if="calculateIsOverdue(todo)" class="overdue-badge">已逾期</span>
               <span v-if="todo.priority" :class="`priority-${todo.priority}`">
                 {{ getPriorityText(todo.priority) }}
@@ -145,7 +145,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
-import { parseTodoFromNL } from '../utils/dateParser'
+import { smartParseTodo } from '../utils/dateParser'
 import { AuthService, TodoService } from '../config/storage.js'
 import { supabase } from '../config/supabase.js'
 
@@ -275,8 +275,15 @@ export default {
     const addTodoFromNL = async () => {
       if (nlInput.value.trim()) {
         try {
-          // 使用自然语言解析
-          const parsedTodo = parseTodoFromNL(nlInput.value)
+          // 显示加载状态
+          const originalText = nlInput.value
+          nlInput.value = '解析中...'
+          
+          // 使用智能解析
+          const parsedTodo = await smartParseTodo(originalText)
+          
+          // 恢复输入框内容
+          nlInput.value = ''
           
           // 检查日期是否在当前月份已过
           if (parsedTodo.dueDate) {
@@ -301,6 +308,8 @@ export default {
           console.log('任务创建完成，优先级设置为:', selectedPriority.value)
         } catch (error) {
           console.error('添加任务失败:', error)
+          // 恢复输入框内容
+          nlInput.value = originalText
         }
       }
     }
