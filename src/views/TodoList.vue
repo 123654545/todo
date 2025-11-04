@@ -80,6 +80,7 @@
             <p class="todo-meta">
               <span v-if="todo.dueDate">截止: {{ formatDate(todo.dueDate) }}</span>
       <span v-if="todo.dueTime"> {{ todo.dueTime }}</span>
+              <span v-if="calculateIsOverdue(todo)" class="overdue-badge">已逾期</span>
               <span v-if="todo.priority" :class="`priority-${todo.priority}`">
                 {{ getPriorityText(todo.priority) }}
               </span>
@@ -99,7 +100,10 @@
         <h3>编辑任务</h3>
         <div class="edit-form">
           <input v-model="editForm.title" placeholder="任务标题" class="edit-input">
-          <input v-model="editForm.dueDate" type="date" class="edit-input">
+          <div class="date-time-row">
+            <input v-model="editForm.dueDate" type="date" class="edit-input date-input">
+            <input v-model="editForm.dueTime" type="time" class="edit-input time-input">
+          </div>
           <select v-model="editForm.priority" class="edit-input">
             <option value="high">高优先级</option>
             <option value="medium">中优先级</option>
@@ -156,6 +160,7 @@ export default {
     const editForm = ref({
       title: '',
       dueDate: '',
+      dueTime: '',
       priority: 'medium'
     })
     const currentUser = ref(null)
@@ -235,6 +240,18 @@ export default {
       } catch (error) {
         console.error('加载任务失败:', error)
       }
+    }
+
+    // 计算精确到分钟的逾期状态
+    const calculateIsOverdue = (todo) => {
+      if (!todo.dueDate || todo.completed) return false
+      
+      // 构建完整的日期时间字符串
+      const dueDateTime = `${todo.dueDate} ${todo.dueTime || '23:59'}`
+      const dueDateObj = dayjs(dueDateTime)
+      const now = dayjs()
+      
+      return dueDateObj.isBefore(now)
     }
 
     const filteredTodos = computed(() => {
@@ -366,6 +383,7 @@ export default {
       editForm.value = {
         title: todo.title,
         dueDate: todo.dueDate || '',
+        dueTime: todo.dueTime || '',
         priority: todo.priority
       }
     }
@@ -377,13 +395,14 @@ export default {
           await TodoService.updateTodo(editingTodo.value.id, {
             title: editForm.value.title,
             due_date: editForm.value.dueDate || null,
+            due_time: editForm.value.dueTime || null,
             priority: editForm.value.priority
           })
           
           // 更新本地状态
           Object.assign(editingTodo.value, editForm.value)
           editingTodo.value = null
-          editForm.value = { title: '', dueDate: '', priority: selectedPriority.value }
+          editForm.value = { title: '', dueDate: '', dueTime: '', priority: selectedPriority.value }
         } catch (error) {
           console.error('更新任务失败:', error)
         }
@@ -392,7 +411,7 @@ export default {
 
     const cancelEdit = () => {
       editingTodo.value = null
-      editForm.value = { title: '', dueDate: '', priority: selectedPriority.value }
+      editForm.value = { title: '', dueDate: '', dueTime: '', priority: selectedPriority.value }
     }
 
     const deleteTodo = async (id) => {
@@ -456,7 +475,8 @@ export default {
       getPriorityText,
       handleLogout,
       confirmPostpone,
-      cancelTask
+      cancelTask,
+      calculateIsOverdue
     }
   }
 }
@@ -823,6 +843,68 @@ h1 {
   border-radius: 8px;
   padding: 10px 12px;
   font-size: 14px;
+}
+
+.date-time-row {
+  display: flex;
+  gap: 12px;
+}
+
+.date-input {
+  flex: 2;
+}
+
+.time-input {
+  flex: 1;
+}
+
+.overdue-badge {
+  background: #ef4444;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.overdue-badge {
+  background: #ef4444;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.date-time-row {
+  display: flex;
+  gap: 12px;
+}
+
+.date-input {
+  flex: 2;
+}
+
+.time-input {
+  flex: 1;
+}
+
+.overdue-badge {
+  background: #ef4444;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.overdue-badge {
+  background: #ef4444;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: bold;
 }
 
 .edit-actions {
