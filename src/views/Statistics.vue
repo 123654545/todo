@@ -696,7 +696,7 @@ export default {
 .statistics-container {
   min-height: 100vh;
   background: #f5f5f5;
-  padding-bottom: 80px;
+  padding-bottom: 50px;
 }
 
 .header {
@@ -916,16 +916,23 @@ export default {
 
 .week-chart {
   display: flex;
-  justify-content: space-between;
+  justify-content: space-around;
   align-items: flex-end;
   height: 200px;
+  min-height: 200px;
+  overflow: hidden;
+  position: relative;
 }
 
 .day-bar {
   display: flex;
   flex-direction: column;
   align-items: center;
-  flex: 1;
+  flex: 1 0 auto;
+  min-width: 40px;
+  max-width: 60px;
+  position: relative;
+  transition: transform 0.15s ease-out;
 }
 
 .bar-container {
@@ -986,8 +993,20 @@ export default {
 }
 
 /* 悬停效果增强 */
+.day-bar:hover {
+  transform: translateY(-2px);
+  transition: transform 0.15s ease-out;
+}
+
 .day-bar:hover .optimization-marker {
   transform: translateX(-50%) scale(1.3);
+}
+
+/* 防止悬停时的布局抖动 */
+.day-bar:hover .bar-container,
+.day-bar:hover .completed-bar {
+  transform: none; /* 防止柱状图自身变化 */
+  transition: none;
 }
 
 /* 提示框样式 */
@@ -999,8 +1018,11 @@ export default {
   padding: 16px;
   z-index: 1000;
   min-width: 260px;
+  max-width: 300px;
   border: 1px solid #e2e8f0;
   animation: tooltipFadeIn 0.2s ease-out;
+  pointer-events: none; /* 防止提示框干扰鼠标事件 */
+  will-change: transform; /* 优化动画性能 */
 }
 
 @keyframes tooltipFadeIn {
