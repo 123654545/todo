@@ -80,23 +80,157 @@
         </div>
       </div>
 
-      <!-- 周统计 -->
+      <!-- 双图表周统计 -->
       <div class="weekly-stats">
-        <h2>本周统计</h2>
-        <div class="week-chart">
-          <div 
-            v-for="day in weeklyStats" 
-            :key="day.day"
-            class="day-bar"
-          >
-            <div class="bar-container">
-              <div 
-                class="completed-bar" 
-                :style="{ height: day.completionRate + '%' }"
-              ></div>
+        <h2>本周任务统计</h2>
+        
+        <!-- 创建任务统计 -->
+        <div class="stats-section">
+          <h3 class="section-title">📋 创建任务统计（按创建日期）</h3>
+          <div class="week-chart created-chart">
+            <div 
+              v-for="day in weeklyCreatedStats" 
+              :key="'created-' + day.day"
+              class="day-bar"
+              @mouseenter="showCreatedTooltip(day, $event)"
+              @mouseleave="hideTooltip"
+            >
+              <div class="bar-container">
+                <div 
+                  class="completed-bar created-bar" 
+                  :style="{ height: day.completionRate + '%' }"
+                ></div>
+                <!-- 任务状态标记点 -->
+                <div 
+                  v-if="day.pending > 0"
+                  class="status-marker pending-marker"
+                  :style="{ bottom: getMarkerPosition(day) + '%' }"
+                ></div>
+                <div 
+                  v-if="day.completed > 0"
+                  class="status-marker completed-marker"
+                  :style="{ bottom: getMarkerPosition(day) + '%' }"
+                ></div>
+              </div>
+              <span class="day-label">{{ day.day }}</span>
+              <span class="day-stats">{{ day.created }} 个</span>
             </div>
-            <span class="day-label">{{ day.day }}</span>
-            <span class="day-stats">{{ day.completed }}/{{ day.total }}</span>
+          </div>
+        </div>
+
+        <!-- 完成任务统计 -->
+        <div class="stats-section">
+          <h3 class="section-title">✅ 完成任务统计（按完成日期）</h3>
+          <div class="week-chart completed-chart">
+            <div 
+              v-for="day in weeklyCompletedStats" 
+              :key="'completed-' + day.day"
+              class="day-bar"
+              @mouseenter="showCompletedTooltip(day, $event)"
+              @mouseleave="hideTooltip"
+            >
+              <div class="bar-container">
+                <div 
+                  class="completed-bar completed-bar" 
+                  :style="{ height: day.completionRate + '%' }"
+                ></div>
+                <!-- 任务状态标记点 -->
+                <div 
+                  v-if="day.status.early > 0"
+                  class="status-marker early-marker"
+                  :style="{ bottom: getMarkerPosition(day) + '%' }"
+                ></div>
+                <div 
+                  v-if="day.status.overdue > 0"
+                  class="status-marker overdue-marker"
+                  :style="{ bottom: getMarkerPosition(day) + '%' }"
+                ></div>
+                <div 
+                  v-if="day.status.onTime > 0"
+                  class="status-marker ontime-marker"
+                  :style="{ bottom: getMarkerPosition(day) + '%' }"
+                ></div>
+              </div>
+              <span class="day-label">{{ day.day }}</span>
+              <span class="day-stats">{{ day.completed }} 个</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 动态提示框 -->
+        <div 
+          v-if="activeTooltip"
+          class="tooltip"
+          :style="{ 
+            left: tooltipPosition.x + 'px', 
+            top: tooltipPosition.y + 'px' 
+          }"
+        >
+          <div class="tooltip-content">
+            <h4>{{ activeTooltip.day }} 任务统计</h4>
+            
+            <template v-if="activeTooltipType === 'created'">
+              <!-- 创建任务统计详情 -->
+              <div class="tooltip-section">
+                <span class="tooltip-label">创建任务：</span>
+                <span class="tooltip-value">{{ activeTooltip.created }} 个</span>
+              </div>
+              
+              <div class="tooltip-section">
+                <span class="tooltip-label">已完成：</span>
+                <span class="tooltip-value">{{ activeTooltip.completed }} 个</span>
+              </div>
+              
+              <div class="tooltip-section">
+                <span class="tooltip-label">待完成：</span>
+                <span class="tooltip-value">{{ activeTooltip.pending }} 个</span>
+              </div>
+              
+              <div class="tooltip-section">
+                <span class="tooltip-label">完成率：</span>
+                <span class="tooltip-value">{{ Math.round(activeTooltip.completionRate) }}%</span>
+              </div>
+            </template>
+
+            <template v-if="activeTooltipType === 'completed'">
+              <!-- 完成任务统计详情 -->
+              <div class="tooltip-section">
+                <span class="tooltip-label">完成任务：</span>
+                <span class="tooltip-value">{{ activeTooltip.completed }} 个</span>
+              </div>
+              
+              <!-- 任务状态分类 -->
+              <div v-if="activeTooltip.status.early > 0" class="tooltip-highlight">
+                <div class="highlight-icon">🚀</div>
+                <div class="highlight-text">
+                  <strong>提前完成：{{ activeTooltip.status.early }} 个</strong>
+                  <small>效率优秀！提前完成计划任务</small>
+                </div>
+              </div>
+              
+              <div v-if="activeTooltip.status.onTime > 0" class="tooltip-highlight">
+                <div class="highlight-icon">✅</div>
+                <div class="highlight-text">
+                  <strong>按时完成：{{ activeTooltip.status.onTime }} 个</strong>
+                  <small>按计划完成任务</small>
+                </div>
+              </div>
+              
+              <div v-if="activeTooltip.status.overdue > 0" class="tooltip-highlight">
+                <div class="highlight-icon">⚠️</div>
+                <div class="highlight-text">
+                  <strong>逾期完成：{{ activeTooltip.status.overdue }} 个</strong>
+                  <small>超过截止日期完成</small>
+                </div>
+              </div>
+            </template>
+            
+            <!-- 统计说明 -->
+            <div class="tooltip-section">
+              <small class="tooltip-note">
+                {{ activeTooltipType === 'created' ? '📊 按创建日期统计' : '📊 按完成日期统计' }}
+              </small>
+            </div>
           </div>
         </div>
       </div>
@@ -151,8 +285,15 @@ export default {
       completionRate: 0
     })
 
-    const weeklyStats = ref([])
+    // 双图表统计数据
+    const weeklyCreatedStats = ref([]) // 创建任务统计
+    const weeklyCompletedStats = ref([]) // 完成任务统计
     const categoryStats = ref([])
+    
+    // 动态提示相关状态
+    const activeTooltip = ref(null)
+    const tooltipPosition = ref({ x: 0, y: 0 })
+    const activeTooltipType = ref('') // 'created' 或 'completed'
 
     // 计算完成率颜色
     const completionColor = computed(() => {
@@ -226,7 +367,7 @@ export default {
       }
     }
 
-    // 全新重写：简单直接的周统计逻辑
+    // 双图表统计：创建任务统计 + 完成任务统计
     const calculateWeeklyStats = () => {
       try {
         const weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
@@ -234,106 +375,299 @@ export default {
         // 获取本周日期范围（周一至周日）
         const today = dayjs()
         const startOfWeek = today.startOf('week').add(1, 'day') // 周一
-        const endOfWeek = startOfWeek.add(6, 'day') // 周日
         
-        console.log('本周日期范围:', startOfWeek.format('YYYY-MM-DD'), '至', endOfWeek.format('YYYY-MM-DD'))
+        console.log('本周日期范围:', startOfWeek.format('YYYY-MM-DD'), '至', startOfWeek.add(6, 'day').format('YYYY-MM-DD'))
         
-        // 初始化周统计数据
-        const weekData = {}
-        weekDays.forEach((day, index) => {
-          const dayDate = startOfWeek.add(index, 'day')
-          weekData[dayDate.format('YYYY-MM-DD')] = {
-            day: day,
-            date: dayDate,
-            createdTasks: [],
-            completedTasks: []
-          }
-        })
+        // 初始化创建任务统计数据
+        const createdData = {}
+        // 初始化完成任务统计数据
+        const completedData = {}
         
-        // 遍历所有任务，按日期分类（与日历完全保持一致）
-        todos.value.forEach(todo => {
-          // 使用截止日期（due_date）来匹配日历的显示逻辑
-          const dueDate = todo.due_date ? dayjs(todo.due_date).format('YYYY-MM-DD') : null
-          const updatedDate = todo.updated_at ? dayjs(todo.updated_at).format('YYYY-MM-DD') : null
-          
-          // 如果任务截止日期在本周内，计入任务（与日历显示一致）
-          if (dueDate && weekData[dueDate]) {
-            weekData[dueDate].createdTasks.push(todo)
-          }
-          
-          // 如果任务完成日期在本周内，计入完成任务
-          if (todo.completed && updatedDate && weekData[updatedDate]) {
-            weekData[updatedDate].completedTasks.push(todo)
-          }
-        })
-        
-        // 调试：显示每个日期的任务详情
-        console.log('=== 详细任务分布 ===')
         weekDays.forEach((day, index) => {
           const dayDate = startOfWeek.add(index, 'day')
           const dateKey = dayDate.format('YYYY-MM-DD')
-          const dayData = weekData[dateKey]
           
-          if (dayData.createdTasks.length > 0) {
-            console.log(`
-${day} (${dateKey}) 的任务:`)
-            dayData.createdTasks.forEach((todo, i) => {
-              console.log(`  ${i + 1}. ${todo.title}`)
-              console.log(`     截止日期: ${todo.due_date}`)
-              console.log(`     创建日期: ${todo.created_at}`)
-              console.log(`     完成状态: ${todo.completed ? '已完成' : '未完成'}`)
-            })
+          createdData[dateKey] = {
+            day: day,
+            date: dayDate,
+            created: 0,      // 创建任务数量
+            completed: 0,    // 已完成任务数量
+            pending: 0,      // 待完成任务数量
+            tasks: []       // 该日创建的任务列表
           }
+          
+          completedData[dateKey] = {
+            day: day,
+            date: dayDate,
+            completed: 0,    // 该日完成的任务数量
+            total: 0,        // 该日完成的总任务数
+            tasks: [],       // 该日完成的任务列表
+            // 任务状态分类
+            status: {
+              onTime: 0,     // 按时完成
+              overdue: 0,     // 逾期完成
+              early: 0        // 提前完成
+            }
+          }
+        })
+        
+        // 遍历所有任务进行分类统计
+        todos.value.forEach(todo => {
+          const createdDate = dayjs(todo.created_at).format('YYYY-MM-DD')
+          const completedDate = todo.completed && todo.updated_at 
+            ? dayjs(todo.updated_at).format('YYYY-MM-DD') 
+            : null
+          
+          // 1. 创建任务统计（按创建日期）
+          if (createdData[createdDate]) {
+            createdData[createdDate].created++
+            createdData[createdDate].tasks.push(todo)
+            
+            if (todo.completed) {
+              createdData[createdDate].completed++
+            } else {
+              createdData[createdDate].pending++
+            }
+          }
+          
+          // 2. 完成任务统计（按完成日期）
+          if (completedDate && completedData[completedDate]) {
+            completedData[completedDate].completed++
+            completedData[completedDate].tasks.push(todo)
+            
+            // 判断任务状态
+            if (todo.due_date) {
+              const dueDate = dayjs(todo.due_date)
+              const actualDate = dayjs(todo.updated_at)
+              
+              if (actualDate.isBefore(dueDate, 'day')) {
+                completedData[completedDate].status.early++
+              } else if (actualDate.isAfter(dueDate, 'day')) {
+                completedData[completedDate].status.overdue++
+              } else {
+                completedData[completedDate].status.onTime++
+              }
+            } else {
+              // 无截止日期的任务默认为按时完成
+              completedData[completedDate].status.onTime++
+            }
+          }
+        })
+        
+        // 计算完成率等统计指标
+        weekDays.forEach((day, index) => {
+          const dayDate = startOfWeek.add(index, 'day')
+          const dateKey = dayDate.format('YYYY-MM-DD')
+          
+          // 创建任务统计：计算完成率
+          const createdDay = createdData[dateKey]
+          createdDay.completionRate = createdDay.created > 0 
+            ? (createdDay.completed / createdDay.created) * 100 
+            : 0
+            
+          // 完成任务统计：设置总数
+          const completedDay = completedData[dateKey]
+          completedDay.total = completedDay.completed
         })
         
         // 生成最终统计结果
-        weeklyStats.value = weekDays.map((day, index) => {
+        weeklyCreatedStats.value = weekDays.map((day, index) => {
           const dayDate = startOfWeek.add(index, 'day')
           const dateKey = dayDate.format('YYYY-MM-DD')
-          const dayData = weekData[dateKey] || { createdTasks: [], completedTasks: [] }
-          
-          // 关键修复：只统计截止日期在该日的任务（与日历保持一致）
-          const total = dayData.createdTasks.length
-          // 只统计在该日完成的任务
-          const completed = dayData.createdTasks.filter(todo => 
-            todo.completed && todo.updated_at && 
-            dayjs(todo.updated_at).format('YYYY-MM-DD') === dateKey
-          ).length
-          
-          // 调试输出
-          if (total > 0 || completed > 0) {
-            console.log(`${day} (${dateKey}): 总任务${total}个, 当日完成${completed}个`)
-            console.log('任务详情:', dayData.createdTasks.map(t => ({
-              title: t.title,
-              completed: t.completed,
-              updated_at: t.updated_at
-            })))
-          }
+          const dayData = createdData[dateKey]
           
           return {
             day: day,
             date: dayDate,
-            completed: completed,
-            total: total,
-            completionRate: total > 0 ? (completed / total) * 100 : 0
+            created: dayData.created,
+            completed: dayData.completed,
+            pending: dayData.pending,
+            completionRate: dayData.completionRate,
+            tasks: dayData.tasks
+          }
+        })
+        
+        weeklyCompletedStats.value = weekDays.map((day, index) => {
+          const dayDate = startOfWeek.add(index, 'day')
+          const dateKey = dayDate.format('YYYY-MM-DD')
+          const dayData = completedData[dateKey]
+          
+          return {
+            day: day,
+            date: dayDate,
+            completed: dayData.completed,
+            total: dayData.total,
+            completionRate: dayData.total > 0 ? 100 : 0, // 完成任务统计完成率总是100%
+            tasks: dayData.tasks,
+            status: dayData.status
           }
         })
         
         // 验证数据
-        const totalCreated = weeklyStats.value.reduce((sum, day) => sum + day.total, 0)
-        console.log('周统计验证: 总创建任务数 =', totalCreated)
+        const totalCreated = weeklyCreatedStats.value.reduce((sum, day) => sum + day.created, 0)
+        const totalCompleted = weeklyCompletedStats.value.reduce((sum, day) => sum + day.completed, 0)
+        
+        console.log('双图表统计验证:')
+        console.log('创建任务总数:', totalCreated)
+        console.log('完成任务总数:', totalCompleted)
+        console.log('实际任务总数:', todos.value.length)
         
       } catch (error) {
         console.error('计算周统计数据时出错:', error)
         // 返回默认数据
-        weeklyStats.value = weekDays.map(day => ({
+        const weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
+        
+        weeklyCreatedStats.value = weekDays.map(day => ({
+          day: day,
+          date: dayjs(),
+          created: 0,
+          completed: 0,
+          pending: 0,
+          completionRate: 0,
+          tasks: []
+        }))
+        
+        weeklyCompletedStats.value = weekDays.map(day => ({
           day: day,
           date: dayjs(),
           completed: 0,
           total: 0,
-          completionRate: 0
+          completionRate: 0,
+          tasks: [],
+          status: { onTime: 0, overdue: 0, early: 0 }
         }))
       }
+    }
+    
+    // 计算优化信息
+    const calculateOptimizationInfo = (tasks, dayDate) => {
+      const completedToday = tasks.filter(todo => 
+        todo.completed && dayjs(todo.updated_at).isSame(dayDate, 'day')
+      ).length
+      
+      const earlyCompletion = tasks.filter(todo => 
+        todo.completed && todo.due_date && 
+        dayjs(todo.updated_at).isBefore(dayjs(todo.due_date), 'day')
+      ).length
+      
+      // 计算效率（完成率加权）
+      const efficiency = tasks.length > 0 ? (completedToday / tasks.length) * 100 : 0
+      
+      return {
+        completedToday: completedToday,
+        earlyCompletion: earlyCompletion,
+        efficiency: Math.round(efficiency)
+      }
+    }
+
+    // 动态提示函数
+    const showTooltip = (day, event) => {
+      activeTooltip.value = day
+      
+      // 计算提示框位置，确保在可视区域内
+      const tooltipWidth = 260
+      const tooltipHeight = 200
+      const viewportWidth = window.innerWidth
+      const viewportHeight = window.innerHeight
+      
+      let x = event.clientX + 10
+      let y = event.clientY + 10
+      
+      // 检查右边界
+      if (x + tooltipWidth > viewportWidth) {
+        x = event.clientX - tooltipWidth - 10
+      }
+      
+      // 检查下边界
+      if (y + tooltipHeight > viewportHeight) {
+        y = event.clientY - tooltipHeight - 10
+      }
+      
+      // 确保位置不为负值
+      x = Math.max(10, x)
+      y = Math.max(10, y)
+      
+      tooltipPosition.value = { x, y }
+    }
+
+    const hideTooltip = () => {
+      activeTooltip.value = null
+    }
+
+    // 标记点位置计算
+    const getMarkerPosition = (day) => {
+      // 标记点位置基于完成率，但要确保在柱状图内
+      const basePosition = 100 - day.completionRate
+      return Math.max(5, Math.min(95, basePosition))
+    }
+
+    // 标记点类型判断
+    const getMarkerType = (day) => {
+      if (day.optimization.efficiency >= 90) return 'excellent'
+      if (day.optimization.efficiency >= 70) return 'good'
+      return 'normal'
+    }
+
+    // 创建任务提示函数
+    const showCreatedTooltip = (day, event) => {
+      activeTooltip.value = day
+      activeTooltipType.value = 'created'
+      
+      // 计算提示框位置
+      const tooltipWidth = 280
+      const tooltipHeight = 220
+      const viewportWidth = window.innerWidth
+      const viewportHeight = window.innerHeight
+      
+      let x = event.clientX + 10
+      let y = event.clientY + 10
+      
+      // 检查右边界
+      if (x + tooltipWidth > viewportWidth) {
+        x = event.clientX - tooltipWidth - 10
+      }
+      
+      // 检查下边界
+      if (y + tooltipHeight > viewportHeight) {
+        y = event.clientY - tooltipHeight - 10
+      }
+      
+      // 确保位置不为负值
+      x = Math.max(10, x)
+      y = Math.max(10, y)
+      
+      tooltipPosition.value = { x, y }
+    }
+
+    // 完成任务提示函数
+    const showCompletedTooltip = (day, event) => {
+      activeTooltip.value = day
+      activeTooltipType.value = 'completed'
+      
+      // 计算提示框位置
+      const tooltipWidth = 280
+      const tooltipHeight = 220
+      const viewportWidth = window.innerWidth
+      const viewportHeight = window.innerHeight
+      
+      let x = event.clientX + 10
+      let y = event.clientY + 10
+      
+      // 检查右边界
+      if (x + tooltipWidth > viewportWidth) {
+        x = event.clientX - tooltipWidth - 10
+      }
+      
+      // 检查下边界
+      if (y + tooltipHeight > viewportHeight) {
+        y = event.clientY - tooltipHeight - 10
+      }
+      
+      // 确保位置不为负值
+      x = Math.max(10, x)
+      y = Math.max(10, y)
+      
+      tooltipPosition.value = { x, y }
     }
 
     onMounted(() => {
@@ -342,8 +676,17 @@ ${day} (${dateKey}) 的任务:`)
 
     return {
       stats,
-      weeklyStats,
-      completionColor
+      weeklyCreatedStats,
+      weeklyCompletedStats,
+      completionColor,
+      activeTooltip,
+      activeTooltipType,
+      tooltipPosition,
+      showCreatedTooltip,
+      showCompletedTooltip,
+      hideTooltip,
+      getMarkerPosition,
+      getMarkerType
     }
   }
 }
@@ -443,6 +786,92 @@ ${day} (${dateKey}) 的任务:`)
   color: #333;
 }
 
+/* 双图表样式 */
+.stats-section {
+  margin-bottom: 30px;
+}
+
+.stats-section:last-child {
+  margin-bottom: 0;
+}
+
+.section-title {
+  margin: 0 0 15px 0;
+  font-size: 1.1rem;
+  color: #444;
+  font-weight: 600;
+}
+
+/* 不同颜色的柱状图 */
+.created-chart .completed-bar {
+  background: linear-gradient(to top, #667eea, #764ba2);
+}
+
+.completed-chart .completed-bar {
+  background: linear-gradient(to top, #4CAF50, #45a049);
+}
+
+/* 状态标记点 */
+.status-marker {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 2px solid white;
+  z-index: 10;
+}
+
+.pending-marker { background: #FF9800; }
+.completed-marker { background: #4CAF50; }
+.early-marker { background: #4CAF50; }
+.ontime-marker { background: #2196F3; }
+.overdue-marker { background: #F44336; }
+
+/* 双图表样式 */
+.stats-section {
+  margin-bottom: 30px;
+}
+
+.stats-section:last-child {
+  margin-bottom: 0;
+}
+
+.section-title {
+  margin: 0 0 15px 0;
+  font-size: 1.1rem;
+  color: #444;
+  font-weight: 600;
+}
+
+/* 不同颜色的柱状图 */
+.created-chart .completed-bar {
+  background: linear-gradient(to top, #667eea, #764ba2);
+}
+
+.completed-chart .completed-bar {
+  background: linear-gradient(to top, #4CAF50, #45a049);
+}
+
+/* 状态标记点 */
+.status-marker {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 2px solid white;
+  z-index: 10;
+}
+
+.pending-marker { background: #FF9800; }
+.completed-marker { background: #4CAF50; }
+.early-marker { background: #4CAF50; }
+.ontime-marker { background: #2196F3; }
+.overdue-marker { background: #F44336; }
+
 .completion-chart {
   display: flex;
   align-items: center;
@@ -526,6 +955,120 @@ ${day} (${dateKey}) 的任务:`)
   font-size: 0.7rem;
   color: #999;
   margin-top: 4px;
+}
+
+/* 优化标记点样式 */
+.optimization-marker {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 2px solid white;
+  z-index: 10;
+  transition: all 0.3s ease;
+}
+
+.optimization-marker.excellent {
+  background: #4CAF50;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.3);
+}
+
+.optimization-marker.good {
+  background: #FF9800;
+  box-shadow: 0 0 0 2px rgba(255, 152, 0, 0.3);
+}
+
+.optimization-marker.normal {
+  background: #2196F3;
+  box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.3);
+}
+
+/* 悬停效果增强 */
+.day-bar:hover .optimization-marker {
+  transform: translateX(-50%) scale(1.3);
+}
+
+/* 提示框样式 */
+.tooltip {
+  position: fixed;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  padding: 16px;
+  z-index: 1000;
+  min-width: 260px;
+  border: 1px solid #e2e8f0;
+  animation: tooltipFadeIn 0.2s ease-out;
+}
+
+@keyframes tooltipFadeIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.tooltip-content h4 {
+  margin: 0 0 12px 0;
+  color: #1e293b;
+  font-size: 14px;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 8px;
+}
+
+.tooltip-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 8px 0;
+  font-size: 13px;
+}
+
+.tooltip-label {
+  color: #64748b;
+  font-weight: 500;
+}
+
+.tooltip-value {
+  color: #1e293b;
+  font-weight: 600;
+}
+
+/* 高亮提示区域 */
+.tooltip-highlight {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 12px -4px;
+  border-left: 3px solid #4CAF50;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tooltip-highlight .highlight-icon {
+  font-size: 16px;
+}
+
+.tooltip-highlight .highlight-text {
+  flex: 1;
+}
+
+.tooltip-highlight strong {
+  color: #1e293b;
+  font-size: 13px;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.tooltip-highlight small {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.tooltip-note {
+  color: #94a3b8;
+  font-style: italic;
 }
 
 .category-grid {
