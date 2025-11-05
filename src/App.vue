@@ -1,14 +1,19 @@
 <template>
   <div id="app">
     <router-view />
+    <AIChatButton />
   </div>
 </template>
 
 <script>
 import { onMounted } from 'vue'
-5
+import AIChatButton from './components/AIChatButton.vue'
+
 export default {
   name: 'App',
+  components: {
+    AIChatButton
+  },
   setup() {
     onMounted(() => {
       // 确保页面使用白色主题

@@ -1,0 +1,642 @@
+<template>
+  <div 
+    class="ai-chat-container"
+  >
+    <!-- 悬浮按钮 -->
+    <button 
+      class="ai-chat-button"
+      :class="{ 
+        active: isOpen
+      }"
+      @click="handleButtonClick"
+    >
+      <span class="ai-icon">🤖</span>
+    </button>
+
+    <!-- 对话框 -->
+    <div 
+      v-if="screenBounds && screenBounds.right > 0"
+      class="ai-chat-dialog" 
+      :class="{ open: isOpen }"
+      :style="{ 
+        right: '0',
+        bottom: '80px'
+      }"
+    >
+      <!-- 对话框头部 -->
+      <div class="chat-header">
+        <h3 class="chat-title">AI助手</h3>
+        <button class="close-button" @click="closeChat">
+          <span class="close-icon">×</span>
+        </button>
+      </div>
+
+      <!-- 对话内容区域 -->
+      <div class="chat-content">
+        <div 
+          v-for="(message, index) in messages" 
+          :key="index"
+          :class="['message', message.type, { loading: message.loading, error: message.error }]"
+        >
+          <div class="message-avatar">
+            <span v-if="message.type === 'ai'">🤖</span>
+            <span v-else>👤</span>
+          </div>
+          <div class="message-bubble">
+            <p class="message-text">{{ message.text }}</p>
+            <span class="message-time">{{ message.time }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 输入区域 -->
+      <div class="chat-input-area">
+        <div class="input-container">
+          <input
+            v-model="inputText"
+            type="text"
+            placeholder="请输入您的问题..."
+            class="chat-input"
+            @keyup.enter="sendMessage"
+          />
+          <button class="send-button" @click="sendMessage">
+            <span class="send-icon">📤</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+import { ref, onMounted, onUnmounted } from 'vue'
+import dayjs from 'dayjs'
+import { deepSeekService } from '../services/deepseekService.js'
+
+export default {
+  name: 'AIChatButton',
+  setup() {
+    const isOpen = ref(false)
+    const inputText = ref('')
+    const messages = ref([
+      {
+        type: 'ai',
+        text: '您好！我是您的AI助手，有什么可以帮助您的吗？',
+        time: dayjs().format('HH:mm')
+      }
+    ])
+    
+    // 屏幕边界检测（用于对话框位置计算）
+    const screenBounds = ref({
+      left: 0,
+      right: 0,
+      top: 0,
+      bottom: 0
+    })
+
+    // 更新屏幕尺寸
+    const updateScreenBounds = () => {
+      if (typeof window !== 'undefined') {
+        screenBounds.value = {
+          left: 0,
+          right: window.innerWidth,
+          top: 0,
+          bottom: window.innerHeight
+        }
+      }
+    }
+
+    // 按钮点击处理
+    const handleButtonClick = (event) => {
+      toggleChat()
+    }
+
+    const toggleChat = () => {
+      isOpen.value = !isOpen.value
+    }
+
+    const closeChat = () => {
+      isOpen.value = false
+    }
+
+    const sendMessage = async () => {
+      if (!inputText.value.trim()) return
+
+      // 添加用户消息
+      const userMessage = {
+        type: 'user',
+        text: inputText.value,
+        time: dayjs().format('HH:mm')
+      }
+      messages.value.push(userMessage)
+
+      // 显示加载状态
+      const loadingMessage = {
+        type: 'ai',
+        text: '正在思考中...',
+        time: dayjs().format('HH:mm'),
+        loading: true
+      }
+      messages.value.push(loadingMessage)
+
+      // 保存当前消息内容
+      const currentInput = inputText.value
+      inputText.value = ''
+
+      try {
+        // 调用DeepSeek API
+        const aiResponse = await deepSeekService.sendMessage(
+          currentInput,
+          messages.value.filter(msg => !msg.loading).slice(0, -1) // 排除加载消息
+        )
+
+        // 移除加载消息
+        messages.value.pop()
+
+        // 添加AI回复
+        messages.value.push({
+          type: 'ai',
+          text: aiResponse,
+          time: dayjs().format('HH:mm')
+        })
+
+      } catch (error) {
+        // 移除加载消息
+        messages.value.pop()
+
+        // 添加错误提示
+        messages.value.push({
+          type: 'ai',
+          text: `抱歉，AI服务暂时不可用：${error.message}`,
+          time: dayjs().format('HH:mm'),
+          error: true
+        })
+      }
+
+      // 滚动到底部
+      setTimeout(() => {
+        const chatContent = document.querySelector('.chat-content')
+        if (chatContent) {
+          chatContent.scrollTop = chatContent.scrollHeight
+        }
+      }, 100)
+    }
+
+    // 生命周期
+    onMounted(() => {
+      window.addEventListener('resize', updateScreenBounds)
+      updateScreenBounds()
+    })
+
+    onUnmounted(() => {
+      window.removeEventListener('resize', updateScreenBounds)
+    })
+
+    return {
+      isOpen,
+      inputText,
+      messages,
+      screenBounds,
+      handleButtonClick,
+      toggleChat,
+      closeChat,
+      sendMessage
+    }
+  }
+}
+</script>
+
+<style scoped>
+.ai-chat-container {
+  position: fixed;
+  bottom: 100px; /* 固定在底部导航栏上方 */
+  right: 20px; /* 固定在右下角 */
+  z-index: 1000;
+  cursor: grab;
+  user-select: none;
+  transition: all 0.3s ease;
+}
+
+.ai-chat-container:active {
+  cursor: grabbing;
+}
+
+/* 虚化效果 - 不点击时 */
+.ai-chat-container:not(:hover):not(.active) .ai-chat-button {
+  opacity: 0.7;
+  filter: blur(1px);
+  transform: scale(0.95);
+}
+
+/* 悬停时恢复正常 */
+.ai-chat-container:hover .ai-chat-button {
+  opacity: 1;
+  filter: blur(0);
+  transform: scale(1);
+}
+
+/* 悬浮按钮样式 */
+.ai-chat-button {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1001;
+}
+
+.ai-chat-button:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 25px rgba(102, 126, 234, 0.6);
+}
+
+.ai-chat-button.active {
+  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+  transform: rotate(90deg);
+}
+
+/* 虚化效果 - 不点击时 */
+.ai-chat-container:not(:hover):not(.active) .ai-chat-button {
+  opacity: 0.7;
+  filter: blur(1px);
+  transform: scale(0.95);
+}
+
+/* 悬停时恢复正常 */
+.ai-chat-container:hover .ai-chat-button {
+  opacity: 1;
+  filter: blur(0);
+  transform: scale(1);
+}
+
+.ai-icon {
+  font-size: 24px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+/* 对话框样式 */
+.ai-chat-dialog {
+  position: absolute;
+  bottom: 80px;
+  right: 0;
+  width: 350px;
+  height: 500px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  transform: translateY(100%);
+  opacity: 0;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ai-chat-dialog.open {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+/* 对话框头部 */
+.chat-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.chat-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.close-button {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease;
+}
+
+.close-button:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.close-icon {
+  font-size: 20px;
+  font-weight: bold;
+  line-height: 1;
+}
+
+/* 对话内容区域 */
+.chat-content {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  background: #f8fafc;
+}
+
+.message {
+  display: flex;
+  margin-bottom: 16px;
+  align-items: flex-start;
+}
+
+.message.user {
+  flex-direction: row-reverse;
+}
+
+.message-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+  margin: 0 8px;
+}
+
+.message.user .message-avatar {
+  background: #667eea;
+  color: white;
+}
+
+.message-bubble {
+  max-width: 70%;
+  background: white;
+  border-radius: 18px;
+  padding: 12px 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  position: relative;
+}
+
+.message.user .message-bubble {
+  background: #667eea;
+  color: white;
+}
+
+.message-text {
+  margin: 0 0 4px 0;
+  font-size: 14px;
+  line-height: 1.4;
+  word-wrap: break-word;
+}
+
+.message-time {
+  font-size: 11px;
+  opacity: 0.7;
+  display: block;
+  text-align: right;
+}
+
+/* 输入区域 */
+.chat-input-area {
+  padding: 16px;
+  background: white;
+  border-top: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+
+.input-container {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.chat-input {
+  flex: 1;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  padding: 12px 16px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.chat-input:focus {
+  border-color: #667eea;
+}
+
+.send-button {
+  background: #667eea;
+  border: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease;
+}
+
+.send-button:hover {
+  background: #5a6fd8;
+}
+
+.send-icon {
+  font-size: 16px;
+}
+
+/* 响应式设计 */
+@media (max-width: 480px) {
+  .ai-chat-container {
+    bottom: 16px;
+    right: 16px;
+  }
+  
+  .ai-chat-button {
+    width: 56px;
+    height: 56px;
+  }
+  
+  .ai-chat-dialog {
+    width: calc(100vw - 32px);
+    height: 70vh;
+    right: 16px;
+    left: 16px;
+    bottom: 72px;
+  }
+  
+  .message-bubble {
+    max-width: 85%;
+  }
+}
+
+/* 滚动条样式 */
+.chat-content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.chat-content::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+.chat-content::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 2px;
+}
+
+.chat-content::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* 加载状态样式 */
+.message.loading .message-bubble {
+  background: #f8fafc !important;
+  color: #64748b !important;
+  animation: pulse 2s infinite;
+}
+
+.message.loading .message-text {
+  font-style: italic;
+}
+
+/* 错误状态样式 */
+.message.error .message-bubble {
+  background: #fef2f2 !important;
+  border: 1px solid #fecaca;
+  color: #dc2626 !important;
+}
+
+.message.error .message-text {
+  font-style: italic;
+}
+
+/* 加载动画 */
+@keyframes pulse {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.6;
+  }
+}
+
+/* 加载状态样式 */
+.message.loading .message-bubble {
+  background: #f8fafc !important;
+  color: #64748b !important;
+  animation: pulse 2s infinite;
+}
+
+.message.loading .message-text {
+  font-style: italic;
+}
+
+/* 错误状态样式 */
+.message.error .message-bubble {
+  background: #fef2f2 !important;
+  border: 1px solid #fecaca;
+  color: #dc2626 !important;
+}
+
+.message.error .message-text {
+  font-style: italic;
+}
+
+/* 加载动画 */
+@keyframes pulse {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.6;
+  }
+}
+
+/* 加载状态样式 */
+.message.loading .message-bubble {
+  background: #f8fafc !important;
+  color: #64748b !important;
+  animation: pulse 2s infinite;
+}
+
+.message.loading .message-text {
+  font-style: italic;
+}
+
+/* 错误状态样式 */
+.message.error .message-bubble {
+  background: #fef2f2 !important;
+  border: 1px solid #fecaca;
+  color: #dc2626 !important;
+}
+
+.message.error .message-text {
+  font-style: italic;
+}
+
+/* 加载动画 */
+@keyframes pulse {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.6;
+  }
+}
+
+/* 加载状态样式 */
+.message.loading .message-bubble {
+  background: #f8fafc !important;
+  color: #64748b !important;
+  animation: pulse 2s infinite;
+}
+
+.message.loading .message-text {
+  font-style: italic;
+}
+
+/* 错误状态样式 */
+.message.error .message-bubble {
+  background: #fef2f2 !important;
+  border: 1px solid #fecaca;
+  color: #dc2626 !important;
+}
+
+.message.error .message-text {
+  font-style: italic;
+}
+
+/* 加载动画 */
+@keyframes pulse {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.6;
+  }
+}
+</style>
