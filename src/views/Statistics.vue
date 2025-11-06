@@ -92,7 +92,7 @@
               v-for="day in weeklyCreatedStats" 
               :key="'created-' + day.day"
               class="day-bar"
-              @mouseenter="showCreatedTooltip(day, $event)"
+              @mouseenter="debouncedShowCreatedTooltip(day, $event)"
               @mouseleave="hideTooltip"
             >
               <div class="bar-container">
@@ -126,7 +126,7 @@
               v-for="day in weeklyCompletedStats" 
               :key="'completed-' + day.day"
               class="day-bar"
-              @mouseenter="showCompletedTooltip(day, $event)"
+              @mouseenter="debouncedShowCompletedTooltip(day, $event)"
               @mouseleave="hideTooltip"
             >
               <div class="bar-container">
@@ -294,6 +294,17 @@ export default {
     const activeTooltip = ref(null)
     const tooltipPosition = ref({ x: 0, y: 0 })
     const activeTooltipType = ref('') // 'created' 或 'completed'
+    
+    // 防抖函数
+    const debounce = (func, wait) => {
+      let timeout
+      return function executedFunction(...args) {
+        clearTimeout(timeout)
+        timeout = setTimeout(() => {
+          func(...args)
+        }, wait)
+      }
+    }
 
     // 计算完成率颜色
     const completionColor = computed(() => {
@@ -670,6 +681,10 @@ export default {
       tooltipPosition.value = { x, y }
     }
 
+    // 创建防抖版本的提示函数 (50ms防抖)
+    const debouncedShowCreatedTooltip = debounce(showCreatedTooltip, 50)
+    const debouncedShowCompletedTooltip = debounce(showCompletedTooltip, 50)
+
     onMounted(() => {
       loadTodos()
     })
@@ -682,8 +697,8 @@ export default {
       activeTooltip,
       activeTooltipType,
       tooltipPosition,
-      showCreatedTooltip,
-      showCompletedTooltip,
+      debouncedShowCreatedTooltip,
+      debouncedShowCompletedTooltip,
       hideTooltip,
       getMarkerPosition,
       getMarkerType
