@@ -116,9 +116,15 @@ export class TodoService {
 // 提醒服务
 export class ReminderService {
   static async createReminder(reminderData) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('用户未登录')
+    
     const { data, error } = await supabase
       .from('reminders')
-      .insert([reminderData])
+      .insert([{
+        ...reminderData,
+        user_id: user.id
+      }])
       .select()
     
     if (error) throw error
@@ -126,13 +132,66 @@ export class ReminderService {
   }
 
   static async getPendingReminders() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('用户未登录')
+    
     const { data, error } = await supabase
       .from('reminders')
       .select('*, todos(*)')
       .eq('sent', false)
+      .eq('user_id', user.id)
       .lt('remind_at', new Date().toISOString())
     
     if (error) throw error
     return data
+  }
+
+  static async markReminderSent(reminderId) {
+    const { data, error } = await supabase
+      .from('reminders')
+      .update({ sent: true, sent_at: new Date().toISOString() })
+      .eq('id', reminderId)
+      .select()
+    
+    if (error) throw error
+    return data[0]
+  }
+
+  // 发送邮件提醒
+  static async sendEmailReminder(reminder, userEmail) {
+    // 这里可以集成邮件服务API，如SendGrid、Mailgun等
+    console.log('发送邮件提醒:', {
+      to: userEmail,
+      subject: `任务提醒: ${reminder.todos?.title}`,
+      message: `提醒: ${reminder.todos?.title} - ${reminder.message}`
+    })
+    
+    // 在实际项目中，这里会调用真实的邮件服务API
+    return { success: true }
+  }
+
+  // 发送WebPush提醒
+  static async sendWebPushReminder(reminder) {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const notification = new Notification('任务提醒', {
+        body: `${reminder.todos?.title}: ${reminder.message}`,
+        icon: '/favicon.ico',
+        tag: 'todo-reminder'
+      })
+      
+      notification.onclick = () => {
+        window.focus()
+        notification.close()
+      }
+    }
+  }
+
+  // 请求通知权限
+  static async requestNotificationPermission() {
+    if ('Notification' in window) {
+      const permission = await Notification.requestPermission()
+      return permission === 'granted'
+    }
+    return false
   }
 }

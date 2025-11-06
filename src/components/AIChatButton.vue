@@ -18,10 +18,6 @@
       v-if="screenBounds && screenBounds.right > 0"
       class="ai-chat-dialog" 
       :class="{ open: isOpen }"
-      :style="{ 
-        right: '0',
-        bottom: '80px'
-      }"
     >
       <!-- 对话框头部 -->
       <div class="chat-header">
@@ -209,16 +205,18 @@ export default {
 <style scoped>
 .ai-chat-container {
   position: fixed;
-  bottom: 100px; /* 固定在底部导航栏上方 */
-  right: 20px; /* 固定在右下角 */
-  z-index: 1000;
-  cursor: grab;
+  bottom: 180px; /* 大幅向上移动，彻底避免遮挡底部导航栏 */
+  right: 20px;
+  z-index: 999;
+  cursor: pointer;
   user-select: none;
   transition: all 0.3s ease;
+  width: fit-content;
+  height: fit-content;
 }
 
 .ai-chat-container:active {
-  cursor: grabbing;
+  cursor: pointer;
 }
 
 /* 虚化效果 - 不点击时 */
@@ -237,8 +235,8 @@ export default {
 
 /* 悬浮按钮样式 */
 .ai-chat-button {
-  width: 60px;
-  height: 60px;
+  width: 56px; /* 稍微减小按钮尺寸，增加间距感 */
+  height: 56px;
   border-radius: 50%;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border: none;
@@ -262,46 +260,37 @@ export default {
   transform: rotate(90deg);
 }
 
-/* 虚化效果 - 不点击时 */
-.ai-chat-container:not(:hover):not(.active) .ai-chat-button {
-  opacity: 0.7;
-  filter: blur(1px);
-  transform: scale(0.95);
-}
-
-/* 悬停时恢复正常 */
-.ai-chat-container:hover .ai-chat-button {
-  opacity: 1;
-  filter: blur(0);
-  transform: scale(1);
-}
-
 .ai-icon {
-  font-size: 24px;
+  font-size: 22px; /* 相应调整图标大小 */
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
 }
 
-/* 对话框样式 */
+
+
+/* 对话框样式 - 重新设计为与按钮整体移动 */
 .ai-chat-dialog {
   position: absolute;
-  bottom: 80px;
+  bottom: 100%; /* 对话框在按钮的上方 */
   right: 0;
   width: 350px;
-  height: 500px;
+  height: 450px;
   background: white;
   border-radius: 16px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
-  transform: translateY(100%);
+  transform: translateY(20px);
   opacity: 0;
-  transition: all 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  z-index: 1001;
+  pointer-events: none;
 }
 
 .ai-chat-dialog.open {
-  transform: translateY(0);
+  transform: translateY(-10px);
   opacity: 1;
+  pointer-events: auto;
 }
 
 /* 对话框头部 */
@@ -458,27 +447,84 @@ export default {
 }
 
 /* 响应式设计 */
+/* 小屏幕手机 */
 @media (max-width: 480px) {
   .ai-chat-container {
-    bottom: 16px;
+    bottom: 160px; /* 大幅向上移动，彻底避免遮挡底部导航栏 */
     right: 16px;
   }
   
   .ai-chat-button {
-    width: 56px;
-    height: 56px;
+    width: 52px;
+    height: 52px;
   }
   
   .ai-chat-dialog {
     width: calc(100vw - 32px);
-    height: 70vh;
-    right: 16px;
-    left: 16px;
-    bottom: 72px;
+    height: 45vh; /* 进一步减小高度，确保完全在屏幕内 */
+    bottom: 100%; /* 对话框在按钮的上方 */
+    right: 0;
+    left: auto;
   }
   
   .message-bubble {
     max-width: 85%;
+  }
+}
+
+/* 平板设备 */
+@media (min-width: 481px) and (max-width: 768px) {
+  .ai-chat-container {
+    bottom: 170px; /* 大幅向上移动，彻底避免遮挡底部导航栏 */
+    right: 24px;
+  }
+  
+  .ai-chat-button {
+    width: 58px;
+    height: 58px;
+  }
+  
+  .ai-chat-dialog {
+    width: 320px;
+    height: 400px; /* 减小高度，确保完全在屏幕内 */
+    bottom: 100%; /* 对话框在按钮的上方 */
+    right: 0;
+    left: auto;
+  }
+}
+
+/* 大屏幕设备（桌面） */
+@media (min-width: 769px) {
+  .ai-chat-container {
+    bottom: 180px; /* 大幅向上移动，彻底避免遮挡底部导航栏 */
+    right: 32px;
+  }
+  
+  .ai-chat-button {
+    width: 60px;
+    height: 60px;
+  }
+  
+  .ai-chat-dialog {
+    width: 380px;
+    height: 430px; /* 减小高度，确保完全在屏幕内 */
+    bottom: 100%; /* 对话框在按钮的上方 */
+    right: 0;
+    left: auto;
+  }
+}
+
+/* 超大屏幕设备 */
+@media (min-width: 1200px) {
+  .ai-chat-container {
+    bottom: 190px; /* 大幅向上移动，彻底避免遮挡底部导航栏 */
+    right: 40px;
+  }
+  
+  .ai-chat-dialog {
+    width: 400px;
+    height: 450px; /* 减小高度，确保完全在屏幕内 */
+    bottom: 100%; /* 对话框在按钮的上方 */
   }
 }
 
@@ -535,108 +581,79 @@ export default {
   }
 }
 
-/* 加载状态样式 */
-.message.loading .message-bubble {
-  background: #f8fafc !important;
-  color: #64748b !important;
-  animation: pulse 2s infinite;
+/* 浏览器兼容性优化 */
+/* Firefox滚动条兼容 */
+.chat-content {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f1f5f9;
 }
 
-.message.loading .message-text {
-  font-style: italic;
-}
-
-/* 错误状态样式 */
-.message.error .message-bubble {
-  background: #fef2f2 !important;
-  border: 1px solid #fecaca;
-  color: #dc2626 !important;
-}
-
-.message.error .message-text {
-  font-style: italic;
-}
-
-/* 加载动画 */
-@keyframes pulse {
-  0% {
-    opacity: 0.6;
+/* IE兼容性处理 */
+@media all and (-ms-high-contrast: none), (-ms-high-contrast: active) {
+  .ai-chat-container {
+    position: absolute;
+    bottom: 120px;
+    right: 20px;
   }
-  50% {
+  
+  .ai-chat-button {
+    filter: none; /* IE不支持CSS filter */
+  }
+}
+
+/* 移动端触摸优化 */
+@media (hover: none) and (pointer: coarse) {
+  .ai-chat-button:hover {
+    transform: none;
+  }
+  
+  .ai-chat-button:active {
+    transform: scale(0.95);
+  }
+  
+  /* 去除移动端虚化效果，提高性能 */
+  .ai-chat-container:not(:hover):not(.active) .ai-chat-button {
     opacity: 1;
+    filter: none;
+    transform: none;
   }
-  100% {
-    opacity: 0.6;
+}
+
+/* 浏览器兼容性优化 */
+/* Firefox滚动条兼容 */
+.chat-content {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f1f5f9;
+}
+
+/* IE兼容性处理 */
+@media all and (-ms-high-contrast: none), (-ms-high-contrast: active) {
+  .ai-chat-container {
+    position: absolute;
+    bottom: 120px;
+    right: 20px;
+  }
+  
+  .ai-chat-button {
+    filter: none; /* IE不支持CSS filter */
   }
 }
 
-/* 加载状态样式 */
-.message.loading .message-bubble {
-  background: #f8fafc !important;
-  color: #64748b !important;
-  animation: pulse 2s infinite;
-}
-
-.message.loading .message-text {
-  font-style: italic;
-}
-
-/* 错误状态样式 */
-.message.error .message-bubble {
-  background: #fef2f2 !important;
-  border: 1px solid #fecaca;
-  color: #dc2626 !important;
-}
-
-.message.error .message-text {
-  font-style: italic;
-}
-
-/* 加载动画 */
-@keyframes pulse {
-  0% {
-    opacity: 0.6;
+/* 移动端触摸优化 */
+@media (hover: none) and (pointer: coarse) {
+  .ai-chat-button:hover {
+    transform: none;
   }
-  50% {
+  
+  .ai-chat-button:active {
+    transform: scale(0.95);
+  }
+  
+  /* 去除移动端虚化效果，提高性能 */
+  .ai-chat-container:not(:hover):not(.active) .ai-chat-button {
     opacity: 1;
-  }
-  100% {
-    opacity: 0.6;
-  }
-}
-
-/* 加载状态样式 */
-.message.loading .message-bubble {
-  background: #f8fafc !important;
-  color: #64748b !important;
-  animation: pulse 2s infinite;
-}
-
-.message.loading .message-text {
-  font-style: italic;
-}
-
-/* 错误状态样式 */
-.message.error .message-bubble {
-  background: #fef2f2 !important;
-  border: 1px solid #fecaca;
-  color: #dc2626 !important;
-}
-
-.message.error .message-text {
-  font-style: italic;
-}
-
-/* 加载动画 */
-@keyframes pulse {
-  0% {
-    opacity: 0.6;
-  }
-  50% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0.6;
+    filter: none;
+    transform: none;
   }
 }
 </style>
