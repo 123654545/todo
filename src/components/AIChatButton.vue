@@ -77,7 +77,7 @@ export default {
     const messages = ref([
       {
         type: 'ai',
-        text: '您好！我是您的AI助手，有什么可以帮助您的吗？',
+        text: '您好！我是您的Todo任务管理AI助手。我可以帮助您：创建、编辑和管理任务，设置截止日期和提醒，分类和搜索任务。请只询问与任务管理相关的问题，谢谢！',
         time: dayjs().format('HH:mm')
       }
     ])
