@@ -7,8 +7,7 @@ export default defineConfig({
     port: 3000,
     host: true
   },
-  // 修复刷新页面404问题
-  base: '/',
+  // 修复Vercel部署问题 - 移除base配置让Vite自动处理
   build: {
     outDir: 'dist',
     assetsDir: 'assets'
