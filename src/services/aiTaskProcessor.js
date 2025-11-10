@@ -1,5 +1,6 @@
 import { AITaskService } from './aiTaskService.js'
 import dayjs from 'dayjs'
+import { smartParseTodo } from '../utils/dateParser.js'
 
 /**
  * AI任务处理器
@@ -445,7 +446,7 @@ export class AITaskProcessor {
   /**
    * 增强日期解析功能
    */
-  static parseTaskInfo(input) {
+  static async parseTaskInfo(input) {
     const taskInfo = {}
     
     // 先尝试智能提取标题
@@ -460,42 +461,45 @@ export class AITaskProcessor {
       }
     }
     
-    // 提取日期信息 - 增强版本
-    const datePatterns = [
-      /(\d{1,2}月\d{1,2}日)/g,
-      /(\d{1,2}日)/g,
-      /(明天|后天|下周|下个月|今天|今晚|今早|今日|明天|后天|大后天)/g,
-      /(\d{4}-\d{1,2}-\d{1,2})/g,
-      /(上午|下午|晚上|早上|傍晚|中午)/g,
-      /(星期[一二三四五六日])/g
-    ]
+    // 使用统一的日期解析器（与列表界面保持一致）
+    const parsedInfo = await smartParseTodo(input)
     
-    for (const pattern of datePatterns) {
-      const match = input.match(pattern)
-      if (match) {
-        const normalizedDate = this.normalizeDate(match[0])
-        if (normalizedDate) {
-          taskInfo.dueDate = normalizedDate
-        }
-        break
-      }
+    if (parsedInfo.dueDate) {
+      taskInfo.dueDate = parsedInfo.dueDate
     }
     
-    // 提取时间信息 - 增强版本
-    const timePatterns = [
-      /(\d{1,2}:\d{2})/g,
-      /(\d{1,2}点)/g,
-      /(上午|下午|晚上|早上|傍晚|中午)\s*(\d{1,2})/g
-    ]
+    if (parsedInfo.dueTime) {
+      taskInfo.dueTime = parsedInfo.dueTime
+    }
     
-    for (const pattern of timePatterns) {
-      const match = input.match(pattern)
-      if (match) {
-        const normalizedTime = this.normalizeTime(match[0])
-        if (normalizedTime) {
-          taskInfo.dueTime = normalizedTime
+    // 如果没有解析到标题，使用原来的标题
+    if (!taskInfo.title && parsedInfo.title) {
+      taskInfo.title = parsedInfo.title
+    }
+    
+    // 如果统一解析器没有找到时间，再尝试原有的时间提取
+    if (!taskInfo.dueTime) {
+      // 提取时间信息 - 增强版本
+      const timePatterns = [
+        /(\d{1,2}:\d{2})/g,
+        /(\d{1,2})点(\d{1,2})分?/g,
+        /(\d{1,2})点/g,
+        /上午\s*(\d{1,2})点?/g,
+        /下午\s*(\d{1,2})点?/g,
+        /晚上\s*(\d{1,2})点?/g,
+        /(\d{1,2})[点时]半/g,
+        /(\d{1,2})刻/g
+      ]
+      
+      for (const pattern of timePatterns) {
+        const match = input.match(pattern)
+        if (match) {
+          const normalizedTime = this.normalizeTime(match[0])
+          if (normalizedTime) {
+            taskInfo.dueTime = normalizedTime
+          }
+          break
         }
-        break
       }
     }
     
