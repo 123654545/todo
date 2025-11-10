@@ -67,6 +67,24 @@ const timePatterns = [
   /(\d{1,2})刻/
 ]
 
+// 相对时间量正则（新增）
+const relativeTimePatterns = [
+  // 几点后（如：3小时后、2小时后）
+  /(\d+)[小]?时后/,
+  
+  // 几天后（如：3天后、5天后）
+  /(\d+)天后/,
+  
+  // 几周后（如：2周后、3周后）
+  /(\d+)周后/,
+  
+  // 几个月后（如：3个月后、6个月后）
+  /(\d+)个月后/,
+  
+  // 几分钟后（如：30分钟后、15分钟后）
+  /(\d+)分钟后/
+]
+
 // 日期格式正则
 const datePatterns = [
   // YYYY-MM-DD
@@ -236,8 +254,63 @@ export function parseDateTime(text) {
     }
   }
   
-  // 3. 如果没有明确日期，默认设为今天
-  if (!hasDate) {
+  // 2.5 解析相对时间量（新增）
+  let relativeTimeAmount = 0
+  let relativeTimeUnit = ''
+  for (const pattern of relativeTimePatterns) {
+    const match = text.match(pattern)
+    if (match) {
+      const amount = parseInt(match[1])
+      
+      if (pattern.source.includes('时后')) {
+        relativeTimeAmount = amount
+        relativeTimeUnit = 'hour'
+      } else if (pattern.source.includes('天后')) {
+        relativeTimeAmount = amount
+        relativeTimeUnit = 'day'
+      } else if (pattern.source.includes('周后')) {
+        relativeTimeAmount = amount
+        relativeTimeUnit = 'week'
+      } else if (pattern.source.includes('个月后')) {
+        relativeTimeAmount = amount
+        relativeTimeUnit = 'month'
+      } else if (pattern.source.includes('分钟后')) {
+        relativeTimeAmount = amount
+        relativeTimeUnit = 'minute'
+      }
+      
+      if (relativeTimeAmount > 0) {
+        cleanedText = cleanedText.replace(pattern, '').trim()
+        console.log(`🔍 检测到相对时间: ${amount}${relativeTimeUnit}后`)
+        break
+      }
+    }
+  }
+  
+  // 3. 处理相对时间量和日期计算（新增）
+  let baseDate = hasDate ? dayjs(date) : dayjs()
+  
+  // 如果有相对时间量，基于当前日期或已解析的日期进行计算
+  if (relativeTimeAmount > 0 && relativeTimeUnit) {
+    baseDate = baseDate.add(relativeTimeAmount, relativeTimeUnit)
+    date = baseDate.format('YYYY-MM-DD')
+    
+    // 如果是小时或分钟级别的相对时间，需要调整时间
+    if (relativeTimeUnit === 'hour' || relativeTimeUnit === 'minute') {
+      if (!time) {
+        // 如果没有明确时间，设置当前时间加上相对时间
+        const baseTime = dayjs()
+        const newTime = baseTime.add(relativeTimeAmount, relativeTimeUnit)
+        time = newTime.format('HH:mm')
+        hasTime = true
+        console.log(`⏰ 相对时间计算: ${baseTime.format('HH:mm')} + ${relativeTimeAmount}${relativeTimeUnit} = ${time}`)
+      }
+    }
+    
+    hasDate = true
+    console.log(`📅 日期计算: ${baseDate.format('YYYY-MM-DD')} (${relativeTimeAmount}${relativeTimeUnit}后)`)
+  } else if (!hasDate) {
+    // 如果没有明确日期，默认设为今天
     date = dayjs().format('YYYY-MM-DD')
     hasDate = true
   }
@@ -250,7 +323,9 @@ export function parseDateTime(text) {
     time,
     hasDate,
     hasTime,
-    title
+    title,
+    relativeTimeAmount, // 新增：返回相对时间量信息
+    relativeTimeUnit    // 新增：返回相对时间单位
   }
 }
 

@@ -418,18 +418,14 @@ export default {
           const originalText = nlInput.value
           nlInput.value = '解析中...'
           
-          // 新增：智能预处理
-          const preprocessedInput = enhancedPreprocess(originalText)
+          // 调试信息：显示原始输入
+          console.log('🔍 原始输入:', originalText)
           
-          // 调试信息：显示预处理结果
-          console.log('原始输入:', originalText)
-          console.log('预处理后:', preprocessedInput)
-          
-          // 使用智能解析
-          const parsedTodo = await smartParseTodo(preprocessedInput)
+          // 直接使用原始文本进行解析，避免预处理干扰
+          const parsedTodo = await smartParseTodo(originalText)
           
           // 调试信息：显示解析结果
-          console.log('解析结果:', parsedTodo)
+          console.log('✅ 解析结果:', parsedTodo)
           
           // 恢复输入框内容
           nlInput.value = ''
