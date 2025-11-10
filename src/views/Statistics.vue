@@ -80,9 +80,50 @@
         </div>
       </div>
 
-      <!-- 双图表周统计 -->
-      <div class="weekly-stats">
-        <h2>本周任务统计</h2>
+      <!-- 双图表统计 - 整合时间筛选器到统一区域 -->
+      <div class="chart-container">
+        <!-- 图表控制头部 -->
+        <div class="chart-controls">
+          <div class="chart-header">
+            <h2>📊 双图表统计</h2>
+            <span class="current-range-label">{{ currentStatsTitle }}</span>
+          </div>
+          
+          <!-- 时间范围筛选器 -->
+          <div class="time-filter-panel">
+            <div class="time-filter-controls">
+              <div class="time-range-selector">
+                <label class="filter-label">图表时间范围：</label>
+                <select v-model="selectedTimeRange" @change="handleTimeRangeChange" class="time-range-dropdown">
+                  <option value="today">今天</option>
+                  <option value="week" selected>本周</option>
+                  <option value="month">本月</option>
+                  <option value="custom">自定义</option>
+                </select>
+              </div>
+              
+              <!-- 自定义日期选择器（条件显示） -->
+              <div v-if="selectedTimeRange === 'custom'" class="custom-date-picker">
+                <label class="filter-label">自定义日期：</label>
+                <div class="date-inputs">
+                  <input type="date" v-model="customStartDate" class="date-input">
+                  <span class="date-separator">至</span>
+                  <input type="date" v-model="customEndDate" class="date-input">
+                  <button @click="applyCustomRange" class="apply-btn">应用</button>
+                </div>
+              </div>
+              
+              <!-- 显示当前日期范围 -->
+              <div class="date-range-display">
+                <span class="range-text">当前范围：</span>
+                <span class="range-value">{{ formatDateRange(currentStartDate, currentEndDate) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 图表内容 -->
+        <div class="chart-content">
         
         <!-- 创建任务统计 -->
         <div class="stats-section">
@@ -98,7 +139,7 @@
               <div class="bar-container">
                 <div 
                   class="completed-bar created-bar" 
-                  :style="{ height: day.completionRate + '%' }"
+                  :style="{ height: calculateBarHeight(day, 'created') + '%' }"
                 ></div>
                 <!-- 任务状态标记点 -->
                 <div 
@@ -132,7 +173,7 @@
               <div class="bar-container">
                 <div 
                   class="completed-bar completed-bar" 
-                  :style="{ height: day.completionRate + '%' }"
+                  :style="{ height: calculateBarHeight(day, 'completed') + '%' }"
                 ></div>
                 <!-- 任务状态标记点 -->
                 <div 
@@ -233,9 +274,8 @@
             </div>
           </div>
         </div>
+        </div>
       </div>
-
-
     </div>
 
     <!-- 底部导航 -->
@@ -289,6 +329,14 @@ export default {
     const weeklyCreatedStats = ref([]) // 创建任务统计
     const weeklyCompletedStats = ref([]) // 完成任务统计
     const categoryStats = ref([])
+    
+    // 时间范围相关状态
+    const selectedTimeRange = ref('week') // 'today', 'week', 'month', 'custom'
+    const customStartDate = ref('')
+    const customEndDate = ref('')
+    const currentStatsTitle = ref('本周任务统计')
+    const currentStartDate = ref(dayjs().startOf('week').add(1, 'day')) // 周一
+    const currentEndDate = ref(dayjs().startOf('week').add(7, 'day')) // 周日
     
     // 动态提示相关状态
     const activeTooltip = ref(null)
@@ -378,29 +426,70 @@ export default {
       }
     }
 
-    // 双图表统计：创建任务统计 + 完成任务统计
+    // 重构后的统计计算函数（支持时间范围）
+    const calculateRangeStats = (startDate = null, endDate = null) => {
+      // 如果没有传入时间范围，使用默认本周
+      const today = dayjs()
+      const startOfRange = startDate || today.startOf('week').add(1, 'day')
+      const endOfRange = endDate || startOfRange.add(6, 'day')
+      
+      // 设置当前时间范围状态
+      currentStartDate.value = startOfRange
+      currentEndDate.value = endOfRange
+      
+      // 计算日期范围长度来确定标签格式
+      const rangeDays = endOfRange.diff(startOfRange, 'day')
+      
+      // 根据范围长度设置标题
+      if (rangeDays === 0) {
+        currentStatsTitle.value = '今日任务统计'
+      } else if (rangeDays <= 7) {
+        currentStatsTitle.value = '本周任务统计'
+      } else if (rangeDays <= 31) {
+        currentStatsTitle.value = '本月任务统计'
+      } else {
+        currentStatsTitle.value = '自定义范围统计'
+      }
+      
+      // 调用原有的统计逻辑，但使用过滤后的时间范围
+      calculateStatsWithRange(startOfRange, endOfRange)
+    }
+
+    // 保持原有函数名兼容性
     const calculateWeeklyStats = () => {
+      calculateRangeStats()
+    }
+    
+    // 原有的统计逻辑，但支持时间范围过滤
+    const calculateStatsWithRange = (startDate, endDate) => {
       try {
-        const weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
+        // 动态生成日期标签
+        const dateLabels = generateDateLabels(startDate, endDate)
         
-        // 获取本周日期范围（周一至周日）
-        const today = dayjs()
-        const startOfWeek = today.startOf('week').add(1, 'day') // 周一
-        
-        console.log('本周日期范围:', startOfWeek.format('YYYY-MM-DD'), '至', startOfWeek.add(6, 'day').format('YYYY-MM-DD'))
+        console.log('统计日期范围:', startDate.format('YYYY-MM-DD'), '至', endDate.format('YYYY-MM-DD'))
         
         // 初始化创建任务统计数据
         const createdData = {}
         // 初始化完成任务统计数据
         const completedData = {}
         
-        weekDays.forEach((day, index) => {
-          const dayDate = startOfWeek.add(index, 'day')
-          const dateKey = dayDate.format('YYYY-MM-DD')
+        // 生成日期范围内的所有日期
+        const dateRange = []
+        let currentDate = startDate.clone()
+        
+        while (currentDate.isBefore(endDate) || currentDate.isSame(endDate, 'day')) {
+          dateRange.push(currentDate.clone())
+          currentDate = currentDate.add(1, 'day')
+        }
+        
+        // 初始化统计数据结构
+        dateRange.forEach(date => {
+          const dateKey = date.format('YYYY-MM-DD')
+          const dayLabel = dateLabels[dateKey] || date.format('MM-DD')
           
           createdData[dateKey] = {
-            day: day,
-            date: dayDate,
+            day: dayLabel,
+            date: date,
             created: 0,      // 创建任务数量
             completed: 0,    // 已完成任务数量
             pending: 0,      // 待完成任务数量
@@ -408,8 +497,8 @@ export default {
           }
           
           completedData[dateKey] = {
-            day: day,
-            date: dayDate,
+            day: dayLabel,
+            date: date,
             completed: 0,    // 该日完成的任务数量
             total: 0,        // 该日完成的总任务数
             tasks: [],       // 该日完成的任务列表
@@ -466,9 +555,8 @@ export default {
         })
         
         // 计算完成率等统计指标
-        weekDays.forEach((day, index) => {
-          const dayDate = startOfWeek.add(index, 'day')
-          const dateKey = dayDate.format('YYYY-MM-DD')
+        dateRange.forEach(date => {
+          const dateKey = date.format('YYYY-MM-DD')
           
           // 创建任务统计：计算完成率
           const createdDay = createdData[dateKey]
@@ -482,35 +570,33 @@ export default {
         })
         
         // 生成最终统计结果
-        weeklyCreatedStats.value = weekDays.map((day, index) => {
-          const dayDate = startOfWeek.add(index, 'day')
-          const dateKey = dayDate.format('YYYY-MM-DD')
+        weeklyCreatedStats.value = dateRange.map(date => {
+          const dateKey = date.format('YYYY-MM-DD')
           const dayData = createdData[dateKey]
           
           return {
-            day: day,
-            date: dayDate,
-            created: dayData.created,
-            completed: dayData.completed,
-            pending: dayData.pending,
-            completionRate: dayData.completionRate,
-            tasks: dayData.tasks
+            day: dayData ? dayData.day : date.format('MM-DD'),
+            date: date,
+            created: dayData ? dayData.created : 0,
+            completed: dayData ? dayData.completed : 0,
+            pending: dayData ? dayData.pending : 0,
+            completionRate: dayData ? dayData.completionRate : 0,
+            tasks: dayData ? dayData.tasks : []
           }
         })
         
-        weeklyCompletedStats.value = weekDays.map((day, index) => {
-          const dayDate = startOfWeek.add(index, 'day')
-          const dateKey = dayDate.format('YYYY-MM-DD')
+        weeklyCompletedStats.value = dateRange.map(date => {
+          const dateKey = date.format('YYYY-MM-DD')
           const dayData = completedData[dateKey]
           
           return {
-            day: day,
-            date: dayDate,
-            completed: dayData.completed,
-            total: dayData.total,
-            completionRate: dayData.total > 0 ? 100 : 0, // 完成任务统计完成率总是100%
-            tasks: dayData.tasks,
-            status: dayData.status
+            day: dayData ? dayData.day : date.format('MM-DD'),
+            date: date,
+            completed: dayData ? dayData.completed : 0,
+            total: dayData ? dayData.total : 0,
+            completionRate: dayData && dayData.total > 0 ? 100 : 0,
+            tasks: dayData ? dayData.tasks : [],
+            status: dayData ? dayData.status : { onTime: 0, overdue: 0, early: 0 }
           }
         })
         
@@ -526,7 +612,8 @@ export default {
       } catch (error) {
         console.error('计算周统计数据时出错:', error)
         // 返回默认数据
-        const weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
+        // 动态生成日期标签
+        const dateLabels = generateDateLabels(startDate, endDate)
         
         weeklyCreatedStats.value = weekDays.map(day => ({
           day: day,
@@ -603,6 +690,75 @@ export default {
 
     const hideTooltip = () => {
       activeTooltip.value = null
+    }
+
+    // 时间范围管理函数
+    const handleTimeRangeChange = () => {
+      // 重置自定义日期选择
+      if (selectedTimeRange.value !== 'custom') {
+        customStartDate.value = ''
+        customEndDate.value = ''
+      }
+      
+      // 计算新的时间范围
+      calculateStatsByRange(selectedTimeRange.value)
+    }
+    
+    const applyCustomRange = () => {
+      if (!customStartDate.value || !customEndDate.value) {
+        alert('请选择开始和结束日期')
+        return
+      }
+      
+      if (dayjs(customStartDate.value).isAfter(customEndDate.value)) {
+        alert('开始日期不能晚于结束日期')
+        return
+      }
+      
+      calculateStatsByRange('custom', {
+        start: customStartDate.value,
+        end: customEndDate.value
+      })
+    }
+    
+    const calculateStatsByRange = (rangeType, customDates = null) => {
+      let startDate, endDate, title
+      
+      switch (rangeType) {
+        case 'today':
+          startDate = dayjs().startOf('day')
+          endDate = dayjs().endOf('day')
+          title = '今日任务统计'
+          break
+        case 'week':
+          startDate = dayjs().startOf('week').add(1, 'day') // 周一
+          endDate = startDate.add(6, 'day') // 周日
+          title = '本周任务统计'
+          break
+        case 'month':
+          startDate = dayjs().startOf('month')
+          endDate = dayjs().endOf('month')
+          title = '本月任务统计'
+          break
+        case 'custom':
+          startDate = dayjs(customDates.start)
+          endDate = dayjs(customDates.end)
+          title = '自定义范围统计'
+          break
+        default:
+          // 默认本周
+          startDate = dayjs().startOf('week').add(1, 'day')
+          endDate = startDate.add(6, 'day')
+          title = '本周任务统计'
+      }
+      
+      // 更新当前时间范围状态
+      currentStartDate.value = startDate
+      currentEndDate.value = endDate
+      currentStatsTitle.value = title
+      
+      // 重新计算统计
+      calculateStatsWithRange(startDate, endDate)
     }
 
     // 标记点位置计算
@@ -684,6 +840,61 @@ export default {
     // 创建防抖版本的提示函数 (50ms防抖)
     const debouncedShowCreatedTooltip = debounce(showCreatedTooltip, 50)
     const debouncedShowCompletedTooltip = debounce(showCompletedTooltip, 50)
+    
+    // 计算柱状图高度
+    const calculateBarHeight = (day, type) => {
+      if (type === 'created') {
+        // 创建任务统计：使用创建任务数计算高度
+        const maxCreated = Math.max(...weeklyCreatedStats.value.map(d => d.created), 1)
+        return maxCreated > 0 ? (day.created / maxCreated) * 80 : 0
+      } else {
+        // 完成任务统计：使用完成任务数计算高度
+        const maxCompleted = Math.max(...weeklyCompletedStats.value.map(d => d.completed), 1)
+        return maxCompleted > 0 ? (day.completed / maxCompleted) * 80 : 0
+      }
+    }
+    
+    // 日期格式化函数
+    const formatDateRange = (startDate, endDate) => {
+      return `${startDate.format('YYYY年MM月DD日')} - ${endDate.format('YYYY年MM月DD日')}`
+    }
+    
+    // 生成日期标签函数
+    const generateDateLabels = (startDate, endDate) => {
+      const labels = {}
+      const rangeDays = endDate.diff(startDate, 'day')
+      
+      // 生成日期范围内的所有日期
+      const dateRange = []
+      let currentDate = startDate.clone()
+      
+      while (currentDate.isBefore(endDate) || currentDate.isSame(endDate, 'day')) {
+        dateRange.push(currentDate.clone())
+        currentDate = currentDate.add(1, 'day')
+      }
+      
+      // 根据范围长度确定标签格式
+      if (rangeDays <= 7) {
+        // 一周内显示星期几
+        const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+        dateRange.forEach(date => {
+          const dayOfWeek = date.day()
+          labels[date.format('YYYY-MM-DD')] = weekDays[dayOfWeek]
+        })
+      } else if (rangeDays <= 31) {
+        // 一个月内显示日期
+        dateRange.forEach(date => {
+          labels[date.format('YYYY-MM-DD')] = date.format('MM-DD')
+        })
+      } else {
+        // 超过一个月显示月-日
+        dateRange.forEach(date => {
+          labels[date.format('YYYY-MM-DD')] = date.format('MM-DD')
+        })
+      }
+      
+      return labels
+    }
 
     onMounted(() => {
       loadTodos()
@@ -701,7 +912,17 @@ export default {
       debouncedShowCompletedTooltip,
       hideTooltip,
       getMarkerPosition,
-      getMarkerType
+      getMarkerType,
+      selectedTimeRange,
+      customStartDate,
+      customEndDate,
+      currentStatsTitle,
+      currentStartDate,
+      currentEndDate,
+      handleTimeRangeChange,
+      applyCustomRange,
+      formatDateRange,
+      calculateBarHeight
     }
   }
 }
@@ -803,61 +1024,56 @@ export default {
 
 /* 双图表样式 */
 .stats-section {
-  margin-bottom: 30px;
+  margin-bottom: 50px;
+  padding: 30px;
+  border-radius: 16px;
+  background: #fafafa;
+  border: 1px solid #f0f0f0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.stats-section:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
 }
 
 .stats-section:last-child {
   margin-bottom: 0;
 }
 
-.section-title {
-  margin: 0 0 15px 0;
-  font-size: 1.1rem;
-  color: #444;
-  font-weight: 600;
+/* 图表之间的分隔线 */
+.stats-section:not(:last-child) {
+  border-bottom: 3px solid #e8e8e8;
+  padding-bottom: 40px;
 }
 
-/* 不同颜色的柱状图 */
-.created-chart .completed-bar {
-  background: linear-gradient(to top, #667eea, #764ba2);
+/* 为两个图表区域添加不同的主题色 */
+.stats-section:nth-child(1) {
+  border-left: 4px solid #667eea;
 }
 
-.completed-chart .completed-bar {
-  background: linear-gradient(to top, #4CAF50, #45a049);
-}
-
-/* 状态标记点 */
-.status-marker {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  border: 2px solid white;
-  z-index: 10;
-}
-
-.pending-marker { background: #FF9800; }
-.completed-marker { background: #4CAF50; }
-.early-marker { background: #4CAF50; }
-.ontime-marker { background: #2196F3; }
-.overdue-marker { background: #F44336; }
-
-/* 双图表样式 */
-.stats-section {
-  margin-bottom: 30px;
-}
-
-.stats-section:last-child {
-  margin-bottom: 0;
+.stats-section:nth-child(2) {
+  border-left: 4px solid #4CAF50;
 }
 
 .section-title {
-  margin: 0 0 15px 0;
-  font-size: 1.1rem;
-  color: #444;
-  font-weight: 600;
+  margin: 0 0 25px 0;
+  font-size: 1.3rem;
+  color: #2c3e50;
+  font-weight: 700;
+  padding-bottom: 15px;
+  border-bottom: 3px solid #ecf0f1;
+  position: relative;
+}
+
+/* 为两个图表标题添加不同的主题色 */
+.stats-section:nth-child(1) .section-title {
+  border-bottom-color: #667eea;
+}
+
+.stats-section:nth-child(2) .section-title {
+  border-bottom-color: #4CAF50;
 }
 
 /* 不同颜色的柱状图 */
@@ -1179,6 +1395,178 @@ export default {
   color: white;
 }
 
+/* 整合图表容器样式 */
+.chart-container {
+  background: white;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+}
+
+/* 图表控制头部 */
+.chart-controls {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 20px;
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.chart-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.current-range-label {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  backdrop-filter: blur(10px);
+}
+
+/* 时间筛选面板 */
+.time-filter-panel {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 15px;
+  backdrop-filter: blur(10px);
+}
+
+.time-filter-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.time-range-selector {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.filter-label {
+  color: white;
+  font-weight: 600;
+  font-size: 0.95rem;
+  min-width: 140px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.time-range-dropdown {
+  padding: 10px 12px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #2d3748;
+  cursor: pointer;
+  min-width: 150px;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+}
+
+.time-range-dropdown:focus {
+  outline: none;
+  border-color: white;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2);
+}
+
+.custom-date-picker {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.date-inputs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.date-input {
+  padding: 8px 12px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #2d3748;
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+}
+
+.date-input:focus {
+  outline: none;
+  border-color: white;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2);
+}
+
+.date-separator {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.apply-btn {
+  background: white;
+  color: #667eea;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.apply-btn:hover {
+  background: #f8fafc;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.date-range-display {
+  background: rgba(255, 255, 255, 0.15);
+  padding: 12px 16px;
+  border-radius: 8px;
+  border-left: 3px solid white;
+}
+
+.range-text {
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.range-value {
+  color: white;
+  font-weight: 700;
+  margin-left: 8px;
+}
+
+/* 图表内容区域 */
+.chart-content {
+  padding: 20px;
+}
+
+/* 日期范围标签 */
+.date-range-label {
+  color: #666;
+  font-size: 0.9rem;
+  margin-top: -5px;
+  margin-bottom: 20px;
+}
+
 /* 响应式设计 */
 @media (max-width: 768px) {
   .overview-cards {
@@ -1201,6 +1589,21 @@ export default {
   
   .category-grid {
     grid-template-columns: 1fr;
+  }
+  
+  .header-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 15px;
+  }
+  
+  .time-range-selector {
+    margin-right: 0;
+    justify-content: space-between;
+  }
+  
+  .custom-date-picker {
+    flex-wrap: wrap;
   }
 }
 </style>
