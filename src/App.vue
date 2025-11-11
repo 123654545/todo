@@ -44,9 +44,6 @@ export default {
     }
 
     onMounted(() => {
-      // 确保页面使用白色主题
-      document.documentElement.classList.remove('dark')
-      
       // 初始检查认证状态
       checkAuthStatus()
       
@@ -84,5 +81,20 @@ export default {
   --card-bg: #ffffff;
   --header-bg: #ffffff;
   --input-bg: #ffffff;
+}
+
+/* 应用主题变量 */
+#app {
+  min-height: 100vh;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* 应用主题变量 */
+#app {
+  min-height: 100vh;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 </style>

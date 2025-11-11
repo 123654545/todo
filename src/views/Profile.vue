@@ -250,6 +250,7 @@
         </div>
         
 
+
         <div class="setting-item">
           <div class="setting-info">
             <span class="setting-icon">⚡</span>
@@ -334,7 +335,6 @@ export default {
     // 用户设置
     const settings = ref({
       emailNotifications: true,
-      darkMode: false,
       defaultPriority: 'medium',
       autoSave: true,
       showAnalytics: true
@@ -576,14 +576,12 @@ export default {
         if (data && data.length > 0) {
           settings.value = {
             emailNotifications: data[0].email_notifications,
-            darkMode: data[0].theme === 'dark',
             defaultPriority: data[0].default_priority
           }
         } else {
           // 如果没有用户设置，使用默认值
           settings.value = {
             emailNotifications: true,
-            darkMode: false,
             defaultPriority: 'medium'
           }
         }
@@ -592,7 +590,6 @@ export default {
         // 出错时使用默认值
         settings.value = {
           emailNotifications: true,
-          darkMode: false,
           defaultPriority: 'medium'
         }
       }
@@ -1167,25 +1164,18 @@ export default {
           .upsert({
             user_id: currentUser.value.id,
             email_notifications: settings.value.emailNotifications,
-            theme: settings.value.darkMode ? 'dark' : 'light',
             default_priority: settings.value.defaultPriority,
             updated_at: new Date().toISOString()
           })
         
         if (error) throw error
         
-        // 应用主题
-        if (settings.value.darkMode) {
-          document.documentElement.classList.add('dark')
-        } else {
-          document.documentElement.classList.remove('dark')
-        }
+
         
         // 发送设置变化事件，通知其他页面更新
         window.dispatchEvent(new CustomEvent('settingsUpdated', {
           detail: {
-            defaultPriority: settings.value.defaultPriority,
-            darkMode: settings.value.darkMode
+            defaultPriority: settings.value.defaultPriority
           }
         }))
         

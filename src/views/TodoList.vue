@@ -872,63 +872,7 @@ h1 {
 .priority-medium { color: #f59e0b; }
 .priority-low { color: #10b981; }
 
-/* 深色模式样式 */
-:global(.dark) .todo-container {
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-}
 
-:global(.dark) .header {
-  background: var(--bg-secondary);
-  border-bottom-color: var(--border-color);
-}
-
-:global(.dark) .search-input,
-:global(.dark) .filter-select,
-:global(.dark) .nl-input {
-  background: var(--bg-secondary);
-  border-color: var(--border-color);
-  color: var(--text-primary);
-}
-
-:global(.dark) .todo-item {
-  background: var(--bg-secondary);
-  border-color: var(--border-color);
-}
-
-:global(.dark) .todo-item.completed {
-  background: var(--bg-secondary);
-  opacity: 0.7;
-}
-
-:global(.dark) .modal-overlay {
-  background: rgba(0, 0, 0, 0.7);
-}
-
-:global(.dark) .modal-content {
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-}
-
-:global(.dark) .edit-input {
-  background: var(--bg-secondary);
-  border-color: var(--border-color);
-  color: var(--text-primary);
-}
-
-:global(.dark) .bottom-nav {
-  background: var(--bg-secondary);
-  border-top-color: var(--border-color);
-}
-
-:global(.dark) .nav-btn {
-  color: var(--text-primary);
-}
-
-:global(.dark) .nav-btn.active {
-  background: var(--accent-color);
-  color: white;
-}
 
 .todo-actions {
   display: flex;
