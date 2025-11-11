@@ -121,10 +121,11 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { AuthService, TodoService } from '../config/storage.js'
+import { EventEmitter, eventBus, EVENT_TYPES } from '../utils/eventBus.js'
 
 export default {
   name: 'Calendar',
@@ -219,10 +220,56 @@ export default {
           priority: todo.priority,
           nluRaw: todo.nlu_raw
         }))
+        console.log('✅ 日历组件加载任务成功，任务数量:', todos.value.length)
       } catch (error) {
         console.error('加载任务失败:', error)
       }
     }
+
+    // 事件监听器
+    const handleTaskCreated = (data) => {
+      console.log('📅 日历组件收到任务创建事件，重新加载任务')
+      loadTodos()
+    }
+
+    const handleTaskUpdated = (data) => {
+      console.log('📅 日历组件收到任务更新事件，重新加载任务')
+      loadTodos()
+    }
+
+    const handleTasksRefresh = () => {
+      console.log('📅 日历组件收到任务刷新事件，重新加载任务')
+      loadTodos()
+    }
+
+    const handleUIRefresh = () => {
+      console.log('📅 日历组件收到UI刷新事件，重新加载任务')
+      loadTodos()
+    }
+
+    // 注册事件监听器
+    onMounted(() => {
+      console.log('📅 日历组件挂载，注册事件监听器')
+      
+      // 注册事件监听器
+      eventBus.on(EVENT_TYPES.TASK_CREATED, handleTaskCreated)
+      eventBus.on(EVENT_TYPES.TASK_UPDATED, handleTaskUpdated)
+      eventBus.on(EVENT_TYPES.TASKS_REFRESH, handleTasksRefresh)
+      eventBus.on(EVENT_TYPES.UI_REFRESH_REQUIRED, handleUIRefresh)
+      
+      // 初始化加载任务
+      getCurrentUser()
+    })
+
+    // 移除事件监听器
+    onUnmounted(() => {
+      console.log('📅 日历组件卸载，移除事件监听器')
+      
+      eventBus.off(EVENT_TYPES.TASK_CREATED, handleTaskCreated)
+      eventBus.off(EVENT_TYPES.TASK_UPDATED, handleTaskUpdated)
+      eventBus.off(EVENT_TYPES.TASKS_REFRESH, handleTasksRefresh)
+      eventBus.off(EVENT_TYPES.UI_REFRESH_REQUIRED, handleUIRefresh)
+    })
     
     // 获取指定日期的任务
     const getTodosForDay = (date) => {

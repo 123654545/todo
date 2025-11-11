@@ -425,17 +425,24 @@ export default {
           // 调试信息：显示原始输入
           console.log('🔍 原始输入:', originalText)
           
-          // 直接使用原始文本进行解析，避免预处理干扰
-          const parsedTodo = await smartParseTodo(originalText)
-          
-          // 调试信息：显示解析结果
-          console.log('✅ 解析结果:', parsedTodo)
+        // 直接使用原始文本进行解析，避免预处理干扰
+        const parsedTodo = await smartParseTodo(originalText)
+        
+        // 调试信息：显示解析结果
+        console.log('✅ 解析结果:', parsedTodo)
+        console.log('📝 解析后的任务数据:', {
+          title: parsedTodo.title,
+          dueDate: parsedTodo.dueDate,
+          dueTime: parsedTodo.dueTime,
+          hasDate: !!parsedTodo.dueDate,
+          dateNotEmpty: parsedTodo.dueDate && parsedTodo.dueDate.trim() !== ''
+        })
           
           // 恢复输入框内容
           nlInput.value = ''
           
           // 检查是否成功解析了日期 - 修复默认日期处理
-          if (parsedTodo.dueDate) {
+          if (parsedTodo.dueDate && parsedTodo.dueDate.trim() !== '') {
             console.log(`📅 解析到日期: ${parsedTodo.dueDate}`)
             
             const taskDate = dayjs(parsedTodo.dueDate)
@@ -449,7 +456,7 @@ export default {
               return // 等待用户选择
             }
           } else {
-            // 如果没有解析到日期，确保使用默认日期（当天）
+            // 如果没有解析到日期或日期为空，确保使用默认日期（当天）
             parsedTodo.dueDate = dayjs().format('YYYY-MM-DD')
             console.log(`📅 设置默认日期: ${parsedTodo.dueDate}`)
           }
@@ -457,10 +464,13 @@ export default {
           // 使用用户选择的优先级覆盖自动判断的优先级
           parsedTodo.priority = selectedPriority.value
           
-          // 直接创建任务
-          await createTask(parsedTodo)
-          nlInput.value = ''
-          console.log('任务创建完成，优先级设置为:', selectedPriority.value)
+        // 直接创建任务
+        const newTodo = await createTask(parsedTodo)
+        nlInput.value = ''
+        console.log('任务创建完成，优先级设置为:', selectedPriority.value)
+        
+        // 发送任务创建事件，通知其他组件刷新
+        EventEmitter.taskCreated(newTodo, 'ai')
         } catch (error) {
           console.error('添加任务失败:', error)
           // 恢复输入框内容
