@@ -309,8 +309,8 @@ export function parseDateTime(text) {
     
     hasDate = true
     console.log(`📅 日期计算: ${baseDate.format('YYYY-MM-DD')} (${relativeTimeAmount}${relativeTimeUnit}后)`)
-  } else if (!hasDate && !date) {
-    // 如果没有明确日期且date为空，默认设为今天 - 这是关键修复点
+  } else if (!hasDate) {
+    // 如果没有明确日期，默认设为今天 - 这是关键修复点
     date = dayjs().format('YYYY-MM-DD')
     hasDate = true
     console.log(`📅 设置默认日期: ${date}`)
