@@ -684,15 +684,15 @@ export default {
       
       // 只处理来自AI助手的事件
       if (eventData.source === 'ai') {
-        // 将新任务添加到列表开头
+        // 将新任务添加到列表开头 - 修复字段名映射问题
         todos.value.unshift({
           id: eventData.task.id,
           title: eventData.task.title,
           completed: eventData.task.completed,
-          dueDate: eventData.task.dueDate,
-          dueTime: eventData.task.dueTime,
+          dueDate: eventData.task.dueDate || eventData.task.due_date,     // 支持两种字段名
+          dueTime: eventData.task.dueTime || eventData.task.due_time,     // 支持两种字段名
           priority: eventData.task.priority,
-          nluRaw: eventData.task.nluRaw || null
+          nluRaw: eventData.task.nluRaw || eventData.task.nlu_raw || null // 支持两种字段名
         })
         
         // 显示成功提示

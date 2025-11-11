@@ -1,14 +1,21 @@
 <template>
   <div 
     class="ai-chat-container"
+    :style="{ 
+      right: buttonPosition.right + 'px', 
+      bottom: buttonPosition.bottom + 'px' 
+    }"
   >
     <!-- 悬浮按钮 -->
     <button 
       class="ai-chat-button"
       :class="{ 
-        active: isOpen
+        active: isOpen,
+        dragging: isDragging
       }"
       @click="handleButtonClick"
+      @mousedown="startDrag"
+      @touchstart="startDrag"
     >
       <span class="ai-icon">🤖</span>
     </button>
@@ -45,19 +52,46 @@
         </div>
       </div>
 
+      <!-- 快速指令区域 -->
+      <div v-if="showQuickActions && messages.length <= 2" class="quick-actions-area">
+        <div class="quick-actions">
+          <button 
+            v-for="(action, index) in quickActions" 
+            :key="index"
+            class="quick-action-btn"
+            @click="useQuickAction(action.text)"
+          >
+            <span class="action-icon">{{ action.icon }}</span>
+            <span class="action-text">{{ action.text }}</span>
+          </button>
+        </div>
+      </div>
+
       <!-- 输入区域 -->
       <div class="chat-input-area">
         <div class="input-container">
           <input
             v-model="inputText"
             type="text"
-            placeholder="请输入您的问题..."
+            placeholder="试试：添加任务、查看任务、任务统计..."
             class="chat-input"
             @keyup.enter="sendMessage"
+            @input="handleInputChange"
           />
           <button class="send-button" @click="sendMessage">
             <span class="send-icon">📤</span>
           </button>
+        </div>
+        <!-- 智能提示 -->
+        <div v-if="inputSuggestions.length > 0 && inputText.trim()" class="suggestions">
+          <div 
+            v-for="suggestion in inputSuggestions" 
+            :key="suggestion"
+            class="suggestion-item"
+            @click="useSuggestion(suggestion)"
+          >
+            {{ suggestion }}
+          </div>
         </div>
       </div>
     </div>
@@ -68,7 +102,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import dayjs from 'dayjs'
 import { deepSeekService } from '../services/deepseekService.js'
-import { EventEmitter, EVENT_TYPES } from '../utils/eventBus.js'
+import { EventEmitter } from '../utils/eventBus.js'
 
 export default {
   name: 'AIChatButton',
@@ -78,9 +112,25 @@ export default {
     const messages = ref([
       {
         type: 'ai',
-        text: '您好！我是您的Todo任务管理AI助手。我可以帮助您：创建、编辑和管理任务，设置截止日期和提醒，分类和搜索任务。请只询问与任务管理相关的问题，谢谢！',
+        text: `🤖 **AI任务助手 - 快速开始**
+
+试试这些常用指令：
+✅ "明天上午9点开会" - 创建任务
+✅ "显示今天任务" - 查看任务
+✅ "删除会议" - 删除任务
+✅ "任务统计" - 查看进度
+
+💡 **提示**：点击下方指令卡片快速体验`,
         time: dayjs().format('HH:mm')
       }
+    ])
+    
+    // 快速指令状态
+    const showQuickActions = ref(true)
+    const quickActions = ref([
+      { text: '明天上午9点开会', icon: '➕' },
+      { text: '显示今天任务', icon: '👀' },
+      { text: '任务统计', icon: '📊' }
     ])
     
     // 屏幕边界检测（用于对话框位置计算）
@@ -89,6 +139,14 @@ export default {
       right: 0,
       top: 0,
       bottom: 0
+    })
+
+    // 拖拽移动相关状态
+    const isDragging = ref(false)
+    const dragStartPos = ref({ x: 0, y: 0 })
+    const buttonPosition = ref({ 
+      right: 20, 
+      bottom: 180 
     })
 
     // 更新屏幕尺寸
@@ -103,8 +161,77 @@ export default {
       }
     }
 
+    // 拖拽功能
+    const startDrag = (event) => {
+      // 阻止默认行为，避免文本选择
+      event.preventDefault()
+      
+      // 如果是点击事件且不是长按，则不触发拖拽
+      if (event.type === 'mousedown' && event.button !== 0) return
+      
+      // 设置拖拽状态
+      isDragging.value = true
+      
+      // 记录起始位置
+      const clientX = event.type === 'touchstart' ? event.touches[0].clientX : event.clientX
+      const clientY = event.type === 'touchstart' ? event.touches[0].clientY : event.clientY
+      
+      dragStartPos.value = {
+        x: clientX,
+        y: clientY
+      }
+
+      // 添加全局事件监听器
+      if (typeof window !== 'undefined') {
+        window.addEventListener('mousemove', onDrag)
+        window.addEventListener('mouseup', stopDrag)
+        window.addEventListener('touchmove', onDrag)
+        window.addEventListener('touchend', stopDrag)
+      }
+    }
+
+    const onDrag = (event) => {
+      if (!isDragging.value) return
+      
+      event.preventDefault()
+      
+      const clientX = event.type === 'touchmove' ? event.touches[0].clientX : event.clientX
+      const clientY = event.type === 'touchmove' ? event.touches[0].clientY : event.clientY
+      
+      // 计算移动距离
+      const deltaX = dragStartPos.value.x - clientX
+      const deltaY = dragStartPos.value.y - clientY
+      
+      // 更新按钮位置
+      buttonPosition.value.right += deltaX
+      buttonPosition.value.bottom += deltaY
+      
+      // 限制在屏幕边界内
+      buttonPosition.value.right = Math.max(10, Math.min(window.innerWidth - 70, buttonPosition.value.right))
+      buttonPosition.value.bottom = Math.max(10, Math.min(window.innerHeight - 70, buttonPosition.value.bottom))
+      
+      // 更新起始位置
+      dragStartPos.value = { x: clientX, y: clientY }
+    }
+
+    const stopDrag = () => {
+      if (!isDragging.value) return
+      
+      isDragging.value = false
+      
+      // 移除全局事件监听器
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('mousemove', onDrag)
+        window.removeEventListener('mouseup', stopDrag)
+        window.removeEventListener('touchmove', onDrag)
+        window.removeEventListener('touchend', stopDrag)
+      }
+    }
+
     // 按钮点击处理
     const handleButtonClick = (event) => {
+      // 如果正在拖拽，不触发点击事件
+      if (isDragging.value) return
       toggleChat()
     }
 
@@ -114,6 +241,56 @@ export default {
 
     const closeChat = () => {
       isOpen.value = false
+    }
+
+    // 快速指令处理
+    const useQuickAction = (command) => {
+      inputText.value = command
+      sendMessage()
+      showQuickActions.value = false
+    }
+
+    // 输入建议
+    const inputSuggestions = ref([])
+    
+    // 智能提示映射
+    const suggestionMap = {
+      '添': ['添加任务：明天开会', '添加提醒：晚上学习'],
+      '查': ['查看今天任务', '查看待办任务', '查看所有任务'],
+      '删': ['删除会议', '删除已完成任务'],
+      '任': ['任务统计', '任务进度'],
+      '明': ['明天上午9点开会', '明天下午健身'],
+      '今': ['今天任务', '今日安排']
+    }
+
+    // 处理输入变化
+    const handleInputChange = () => {
+      const text = inputText.value.trim()
+      if (text.length === 0) {
+        inputSuggestions.value = []
+        return
+      }
+
+      // 根据输入内容生成建议
+      const suggestions = []
+      
+      // 关键词匹配
+      for (const [key, values] of Object.entries(suggestionMap)) {
+        if (text.includes(key)) {
+          suggestions.push(...values)
+        }
+      }
+
+      // 去重并限制数量
+      inputSuggestions.value = [...new Set(suggestions)].slice(0, 3)
+    }
+
+    // 使用建议
+    const useSuggestion = (suggestion) => {
+      inputText.value = suggestion
+      inputSuggestions.value = []
+      // 自动发送
+      setTimeout(() => sendMessage(), 100)
     }
 
     const sendMessage = async () => {
@@ -160,9 +337,6 @@ export default {
         // 发布AI任务处理事件（用于数据同步）
         EventEmitter.aiTaskProcessed('ai_response', aiResponse, currentInput)
 
-        // 发布AI任务处理事件（用于数据同步）
-        EventEmitter.aiTaskProcessed('ai_response', aiResponse, currentInput)
-
       } catch (error) {
         // 移除加载消息
         messages.value.pop()
@@ -200,10 +374,19 @@ export default {
       inputText,
       messages,
       screenBounds,
+      showQuickActions,
+      quickActions,
+      inputSuggestions,
+      buttonPosition,
+      isDragging,
       handleButtonClick,
       toggleChat,
       closeChat,
-      sendMessage
+      useQuickAction,
+      handleInputChange,
+      useSuggestion,
+      sendMessage,
+      startDrag
     }
   }
 }
@@ -267,6 +450,30 @@ export default {
   transform: rotate(90deg);
 }
 
+/* 拖拽状态样式 */
+.ai-chat-button.dragging {
+  cursor: grabbing !important;
+  transform: scale(1.15) !important;
+  box-shadow: 0 8px 30px rgba(102, 126, 234, 0.8) !important;
+  z-index: 1002 !important;
+}
+
+.ai-chat-container:hover .ai-chat-button.dragging {
+  transform: scale(1.15) !important;
+}
+
+/* 拖拽状态样式 */
+.ai-chat-button.dragging {
+  cursor: grabbing !important;
+  transform: scale(1.15) !important;
+  box-shadow: 0 8px 30px rgba(102, 126, 234, 0.8) !important;
+  z-index: 1002 !important;
+}
+
+.ai-chat-container:hover .ai-chat-button.dragging {
+  transform: scale(1.15) !important;
+}
+
 .ai-icon {
   font-size: 22px; /* 相应调整图标大小 */
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
@@ -294,13 +501,91 @@ export default {
   pointer-events: none;
 }
 
-.ai-chat-dialog.open {
-  transform: translateY(-10px);
-  opacity: 1;
-  pointer-events: auto;
-}
+  .ai-chat-dialog.open {
+    transform: translateY(-10px);
+    opacity: 1;
+    pointer-events: auto;
+  }
 
-/* 对话框头部 */
+  /* 快速指令区域 */
+  .quick-actions-area {
+    padding: 8px 12px;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .quick-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .quick-action-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 13px;
+    color: #374151;
+  }
+
+  .quick-action-btn:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+  }
+
+  .action-icon {
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  .action-text {
+    flex: 1;
+    text-align: left;
+    font-size: 13px;
+    line-height: 1.3;
+  }
+
+  /* 智能提示 */
+  .suggestions {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px 8px 0 0;
+    max-height: 120px;
+    overflow-y: auto;
+    z-index: 1002;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .suggestion-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #374151;
+    border-bottom: 1px solid #f1f5f9;
+    transition: background 0.2s ease;
+  }
+
+  .suggestion-item:hover {
+    background: #f1f5f9;
+  }
+
+  .suggestion-item:last-child {
+    border-bottom: none;
+  }
+
+  /* 对话框头部 */
 .chat-header {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
@@ -454,10 +739,10 @@ export default {
 }
 
 /* 响应式设计 */
-/* 小屏幕手机 */
-@media (max-width: 480px) {
+/* 移动设备 (手机+小屏平板) */
+@media (max-width: 768px) {
   .ai-chat-container {
-    bottom: 160px; /* 大幅向上移动，彻底避免遮挡底部导航栏 */
+    bottom: 160px; /* 避免遮挡底部导航栏 */
     right: 16px;
   }
   
@@ -468,10 +753,9 @@ export default {
   
   .ai-chat-dialog {
     width: calc(100vw - 32px);
-    height: 45vh; /* 进一步减小高度，确保完全在屏幕内 */
-    bottom: 100%; /* 对话框在按钮的上方 */
+    height: 45vh;
+    bottom: 100%;
     right: 0;
-    left: auto;
   }
   
   .message-bubble {
@@ -479,31 +763,29 @@ export default {
   }
 }
 
-/* 平板设备 */
-@media (min-width: 481px) and (max-width: 768px) {
+/* 平板设备 (中屏设备) */
+@media (min-width: 769px) and (max-width: 1024px) {
   .ai-chat-container {
-    bottom: 170px; /* 大幅向上移动，彻底避免遮挡底部导航栏 */
+    bottom: 170px;
     right: 24px;
   }
   
   .ai-chat-button {
-    width: 58px;
-    height: 58px;
+    width: 56px;
+    height: 56px;
   }
   
   .ai-chat-dialog {
-    width: 320px;
-    height: 400px; /* 减小高度，确保完全在屏幕内 */
-    bottom: 100%; /* 对话框在按钮的上方 */
-    right: 0;
-    left: auto;
+    width: 360px;
+    height: 420px;
+    bottom: 100%;
   }
 }
 
-/* 大屏幕设备（桌面） */
-@media (min-width: 769px) {
+/* 桌面设备 */
+@media (min-width: 1025px) {
   .ai-chat-container {
-    bottom: 180px; /* 大幅向上移动，彻底避免遮挡底部导航栏 */
+    bottom: 180px;
     right: 32px;
   }
   
@@ -513,25 +795,9 @@ export default {
   }
   
   .ai-chat-dialog {
-    width: 380px;
-    height: 430px; /* 减小高度，确保完全在屏幕内 */
-    bottom: 100%; /* 对话框在按钮的上方 */
-    right: 0;
-    left: auto;
-  }
-}
-
-/* 超大屏幕设备 */
-@media (min-width: 1200px) {
-  .ai-chat-container {
-    bottom: 190px; /* 大幅向上移动，彻底避免遮挡底部导航栏 */
-    right: 40px;
-  }
-  
-  .ai-chat-dialog {
     width: 400px;
-    height: 450px; /* 减小高度，确保完全在屏幕内 */
-    bottom: 100%; /* 对话框在按钮的上方 */
+    height: 450px;
+    bottom: 100%;
   }
 }
 
@@ -585,44 +851,6 @@ export default {
   }
   100% {
     opacity: 0.6;
-  }
-}
-
-/* 浏览器兼容性优化 */
-/* Firefox滚动条兼容 */
-.chat-content {
-  scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 #f1f5f9;
-}
-
-/* IE兼容性处理 */
-@media all and (-ms-high-contrast: none), (-ms-high-contrast: active) {
-  .ai-chat-container {
-    position: absolute;
-    bottom: 120px;
-    right: 20px;
-  }
-  
-  .ai-chat-button {
-    filter: none; /* IE不支持CSS filter */
-  }
-}
-
-/* 移动端触摸优化 */
-@media (hover: none) and (pointer: coarse) {
-  .ai-chat-button:hover {
-    transform: none;
-  }
-  
-  .ai-chat-button:active {
-    transform: scale(0.95);
-  }
-  
-  /* 去除移动端虚化效果，提高性能 */
-  .ai-chat-container:not(:hover):not(.active) .ai-chat-button {
-    opacity: 1;
-    filter: none;
-    transform: none;
   }
 }
 

@@ -101,7 +101,7 @@ export class AITaskService {
   }
 
   /**
-   * 添加任务
+   * 添加任务 - 修复字段映射和事件发布
    * @param {Object} taskData 任务数据
    * @param {string} taskData.title 任务标题
    * @param {string} taskData.dueDate 截止日期
@@ -113,47 +113,108 @@ export class AITaskService {
     try {
       const { title, dueDate, dueTime, priority = 'medium' } = taskData
       
+      console.log('📝 AI任务服务 - 开始创建任务:')
+      console.log('- 标题:', title)
+      console.log('- 截止日期:', dueDate)
+      console.log('- 截止时间:', dueTime)
+      console.log('- 优先级:', priority)
+      
       if (!title || !title.trim()) {
         throw new Error('任务标题不能为空')
       }
 
-      // 验证日期格式
-      if (dueDate && !this.isValidDate(dueDate)) {
-        throw new Error('截止日期格式不正确，请使用YYYY-MM-DD格式')
+      // 验证和规范化日期时间 - 放宽验证规则
+      let normalizedDueDate = null
+      let normalizedDueTime = null
+
+      if (dueDate) {
+        // 尝试多种日期格式
+        const dateFormats = [
+          'YYYY-MM-DD',
+          'YYYY-M-D',
+          'YYYY/MM/DD',
+          'YYYY/M/D',
+          'YYYY年MM月DD日',
+          'YYYY年M月D日'
+        ]
+        
+        for (const format of dateFormats) {
+          if (dayjs(dueDate, format, true).isValid()) {
+            normalizedDueDate = dayjs(dueDate, format).format('YYYY-MM-DD')
+            break
+          }
+        }
+        
+        // 如果特定格式不匹配，尝试通用解析
+        if (!normalizedDueDate && dayjs(dueDate).isValid()) {
+          normalizedDueDate = dayjs(dueDate).format('YYYY-MM-DD')
+        }
       }
 
-      // 验证时间格式
-      if (dueTime && !this.isValidTime(dueTime)) {
-        throw new Error('截止时间格式不正确，请使用HH:mm格式')
+      if (dueTime) {
+        // 尝试多种时间格式
+        const timeFormats = [
+          'HH:mm',
+          'H:mm',
+          'HH:mm:ss',
+          'H:mm:ss'
+        ]
+        
+        for (const format of timeFormats) {
+          if (dayjs(dueTime, format, true).isValid()) {
+            normalizedDueTime = dueTime
+            break
+          }
+        }
+        
+        // 如果特定格式不匹配，尝试通用解析
+        if (!normalizedDueTime && dayjs(`2000-01-01 ${dueTime}`).isValid()) {
+          normalizedDueTime = dueTime
+        }
       }
+
+      console.log('📝 规范化后的日期时间:')
+      console.log('- 日期:', normalizedDueDate)
+      console.log('- 时间:', normalizedDueTime)
 
       // 验证优先级
       if (priority && !['high', 'medium', 'low'].includes(priority)) {
         throw new Error('优先级必须是 high、medium 或 low')
       }
 
+      // 创建任务
       const newTodo = await TodoService.createTodo({
         title: title.trim(),
-        due_date: dueDate || null,
-        due_time: dueTime || null,
+        due_date: normalizedDueDate,
+        due_time: normalizedDueTime,
         priority
       })
 
-      const task = {
+      console.log('✅ AI任务服务 - 任务创建成功:', newTodo)
+
+      // 发布任务创建事件，确保字段映射正确
+      EventEmitter.taskCreated({
         id: newTodo.id,
         title: newTodo.title,
         completed: newTodo.completed,
-        dueDate: newTodo.due_date,
-        dueTime: newTodo.due_time,
-        priority: newTodo.priority
+        due_date: newTodo.due_date,      // 使用数据库字段名
+        due_time: newTodo.due_time,      // 使用数据库字段名
+        priority: newTodo.priority,
+        nlu_raw: newTodo.nlu_raw
+      }, 'ai')
+
+      // 返回规范化后的任务对象，确保前端字段名一致
+      return {
+        id: newTodo.id,
+        title: newTodo.title,
+        completed: newTodo.completed,
+        dueDate: newTodo.due_date,       // 转换为前端字段名
+        dueTime: newTodo.due_time,       // 转换为前端字段名
+        priority: newTodo.priority,
+        nluRaw: newTodo.nlu_raw
       }
-
-      // 发布任务创建事件
-      EventEmitter.taskCreated(task, 'ai')
-
-      return task
     } catch (error) {
-      console.error('添加任务失败:', error)
+      console.error('❌ AI任务服务 - 创建任务失败:', error)
       throw new Error(`添加任务失败: ${error.message}`)
     }
   }
@@ -337,21 +398,55 @@ export class AITaskService {
   }
 
   /**
-   * 验证日期格式
+   * 验证日期格式 - 放宽验证规则，支持AI解析的自然语言格式
    * @param {string} date 日期字符串
    * @returns {boolean} 是否有效
    */
   static isValidDate(date) {
-    return dayjs(date, 'YYYY-MM-DD', true).isValid()
+    if (!date) return false
+    
+    // 支持多种格式验证
+    const formats = [
+      'YYYY-MM-DD',
+      'YYYY-M-D',
+      'YYYY/MM/DD',
+      'YYYY/M/D'
+    ]
+    
+    for (const format of formats) {
+      if (dayjs(date, format, true).isValid()) {
+        return true
+      }
+    }
+    
+    // 验证是否为有效日期对象
+    return dayjs(date).isValid()
   }
 
   /**
-   * 验证时间格式
+   * 验证时间格式 - 放宽验证规则，支持AI解析的自然语言格式
    * @param {string} time 时间字符串
    * @returns {boolean} 是否有效
    */
   static isValidTime(time) {
-    return dayjs(time, 'HH:mm', true).isValid()
+    if (!time) return false
+    
+    // 支持多种格式验证
+    const formats = [
+      'HH:mm',
+      'H:mm',
+      'HH:mm:ss',
+      'H:mm:ss'
+    ]
+    
+    for (const format of formats) {
+      if (dayjs(time, format, true).isValid()) {
+        return true
+      }
+    }
+    
+    // 验证是否为有效时间对象
+    return dayjs(`2000-01-01 ${time}`).isValid()
   }
 
   /**

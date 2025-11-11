@@ -125,7 +125,7 @@ export class AITaskProcessor {
     const hasAddKeyword = addKeywords.some(keyword => input.includes(keyword))
     
     // 检查是否包含任务相关的名词
-    const taskNouns = ['开会', '会议', '学习', '工作', '健身', '购物', '约会', '任务', '事情', '事项']
+    const taskNouns = ['开会', '会议', '学习', '工作', '健身', '购物', '约会', '任务', '事情', '事项', '评审', '报告', '项目', '计划', '准备']
     const hasTaskNoun = taskNouns.some(noun => input.includes(noun))
     
     // 检查是否包含时间关键词
@@ -143,7 +143,14 @@ export class AITaskProcessor {
    */
   static async handleAddRequest(input) {
     // 解析任务信息
-    const taskInfo = this.parseTaskInfo(input)
+    const taskInfo = await this.parseTaskInfo(input)
+    
+    // 添加调试日志
+    console.log('🔍 AI处理器 - 传递给任务服务的任务信息:')
+    console.log('- 标题:', taskInfo.title)
+    console.log('- 截止日期:', taskInfo.dueDate)
+    console.log('- 截止时间:', taskInfo.dueTime)
+    console.log('- 优先级:', taskInfo.priority)
     
     // 如果解析失败，尝试更智能的解析
     if (!taskInfo.title) {
@@ -204,14 +211,19 @@ export class AITaskProcessor {
     const allTasks = await AITaskService.getAllTasks()
     
     if (allTasks.length === 0) {
-      return '当前没有任务可以编辑。'
+      return `📝 **没有任务可编辑**
+
+当前没有任务，您可以：
+• "添加任务：明天开会" 创建新任务
+• "显示所有任务" 查看任务列表
+• 直接输入具体任务来添加`
     }
     
     // 查找要编辑的任务
     const taskToEdit = this.findTaskByTitle(input, allTasks)
     
     if (!taskToEdit) {
-      return `请指定要编辑的任务。当前可用任务：\n${allTasks.map((t, i) => `${i+1}. ${t.title}`).join('\n')}`
+      return `❓ **请指定要编辑的任务**\n\n当前可用任务：\n${allTasks.map((t, i) => `${i+1}. ${t.title}`).join('\n')}\n\n💡 **提示**：\n• 输入任务名称，如"编辑会议"\n• 输入"修改明天开会"来编辑任务\n• 输入"查看所有任务"查看完整列表`
     }
     
     // 解析更新信息
@@ -244,7 +256,12 @@ export class AITaskProcessor {
     const allTasks = await AITaskService.getAllTasks()
     
     if (allTasks.length === 0) {
-      return '当前没有任务可以删除。'
+      return `🗑️ **没有任务可删除**
+
+当前没有任务，您可以：
+• "添加任务：明天开会" 创建新任务
+• 直接输入任务内容来添加
+• "查看所有任务" 确认任务列表`
     }
     
     const taskToDelete = this.findTaskByTitle(input, allTasks)
@@ -578,7 +595,7 @@ export class AITaskProcessor {
       }
     }
     
-    // 日期和时间处理
+    // 日期和时间处理 - 修复字段映射问题
     if (parsedInfo.dueDate) {
       taskInfo.dueDate = parsedInfo.dueDate
     } else {
@@ -590,6 +607,15 @@ export class AITaskProcessor {
     if (parsedInfo.dueTime) {
       taskInfo.dueTime = parsedInfo.dueTime
     }
+    
+    // 添加调试日志，检查解析结果
+    console.log('🔍 AI解析器 - 解析结果检查:')
+    console.log('- 原始输入:', input)
+    console.log('- 解析标题:', parsedInfo.title)
+    console.log('- 解析日期:', parsedInfo.dueDate)
+    console.log('- 解析时间:', parsedInfo.dueTime)
+    console.log('- 最终任务日期:', taskInfo.dueDate)
+    console.log('- 最终任务时间:', taskInfo.dueTime)
     
     // 优先级处理
     if (input.includes('高优先级') || input.includes('重要') || input.includes('紧急')) {

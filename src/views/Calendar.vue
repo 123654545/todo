@@ -121,10 +121,11 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { AuthService, TodoService } from '../config/storage.js'
+import EventEmitter from '../utils/eventBus.js'
 
 export default {
   name: 'Calendar',
@@ -318,9 +319,78 @@ export default {
       }
     }
     
-    // 组件挂载时获取用户信息
+    // 事件监听器 - 监听任务创建、更新、删除事件
+    const handleTaskCreated = (eventData) => {
+      console.log('📅 日历界面接收到任务创建事件:', eventData)
+      
+      // 将任务添加到本地列表，确保字段映射正确
+      if (eventData.task && eventData.task.id) {
+        const newTask = {
+          id: eventData.task.id,
+          title: eventData.task.title,
+          completed: eventData.task.completed || false,
+          dueDate: eventData.task.due_date || eventData.task.dueDate,  // 支持两种字段名
+          dueTime: eventData.task.due_time || eventData.task.dueTime,  // 支持两种字段名
+          priority: eventData.task.priority || 'medium',
+          nluRaw: eventData.task.nlu_raw || eventData.task.nluRaw
+        }
+        
+        console.log('📅 新增任务到日历列表:', newTask)
+        todos.value.unshift(newTask)
+      }
+    }
+    
+    const handleTaskUpdated = (eventData) => {
+      console.log('📅 日历界面接收到任务更新事件:', eventData)
+      
+      // 更新本地任务
+      if (eventData.task && eventData.task.id) {
+        const index = todos.value.findIndex(t => t.id === eventData.task.id)
+        if (index !== -1) {
+          const updatedTask = {
+            ...todos.value[index],
+            ...eventData.task
+          }
+          
+          // 确保字段映射正确
+          updatedTask.dueDate = eventData.task.due_date || updatedTask.dueDate
+          updatedTask.dueTime = eventData.task.due_time || updatedTask.dueTime
+          
+          todos.value.splice(index, 1, updatedTask)
+          console.log('📅 更新日历中的任务:', updatedTask)
+        }
+      }
+    }
+    
+    const handleTaskDeleted = (eventData) => {
+      console.log('📅 日历界面接收到任务删除事件:', eventData)
+      
+      // 从本地列表中删除任务
+      if (eventData.taskId) {
+        todos.value = todos.value.filter(t => t.id !== eventData.taskId)
+        console.log('📅 从日历中删除任务:', eventData.taskId)
+      }
+    }
+    
+    // 组件挂载时获取用户信息和注册事件监听
     onMounted(() => {
       getCurrentUser()
+      
+      // 注册事件监听器
+      EventEmitter.on('TASK_CREATED', handleTaskCreated)
+      EventEmitter.on('TASK_UPDATED', handleTaskUpdated)
+      EventEmitter.on('TASK_DELETED', handleTaskDeleted)
+      
+      console.log('📅 日历界面事件监听器已注册')
+    })
+    
+    // 组件卸载时移除事件监听
+    onUnmounted(() => {
+      EventEmitter.off('TASK_CREATED', handleTaskCreated)
+      EventEmitter.off('TASK_UPDATED', handleTaskUpdated)
+      EventEmitter.off('TASK_DELETED', handleTaskDeleted)
+      
+      console.log('📅 日历界面事件监听器已移除')
     })
     
     return {

@@ -57,10 +57,9 @@ const timePatterns = [
   /(\d{1,2})点(\d{1,2})分?/,
   /(\d{1,2})点/,
   
-  // 12小时制
-  /上午\s*(\d{1,2})点?/,
-  /下午\s*(\d{1,2})点?/,
-  /晚上\s*(\d{1,2})点?/,
+  // 12小时制 - 修复：优化匹配模式，支持"下午三点"格式
+  /(上午|下午|晚上)(?:\s*)(\d{1,2})点?/,
+  /(?:\s*)(\d{1,2})点(?:\s*)(上午|下午|晚上)/,
   
   // 数字时间
   /(\d{1,2})[点时]半/,
@@ -87,6 +86,12 @@ const relativeTimePatterns = [
 
 // 日期格式正则
 const datePatterns = [
+  // 修复：确保先匹配相对日期，再匹配其他格式
+  /(今天|明天|后天|大后天|昨天|前天|大前天|今日|明日|后日|昨日|前日|大前日)/,
+  
+  // 星期
+  /(周日|周一|周二|周三|周四|周五|周六|星期天|星期一|星期二|星期三|星期四|星期五|星期六|星期日)/,
+  
   // YYYY-MM-DD
   /(\d{4})[-/年](\d{1,2})[-/月](\d{1,2})[日号]?/,
   
@@ -101,12 +106,6 @@ const datePatterns = [
   
   // 复杂相对日期
   /(下+周|下+星期|下+个?)([一二三四五六日]|星期[一二三四五六日]|周[一二三四五六日])/,
-  
-  // 相对日期
-  /(今天|明天|后天|大后天|昨天|前天|大前天|今日|明日|后日|昨日|前日|大前日)/,
-  
-  // 星期
-  /(周日|周一|周二|周三|周四|周五|周六|星期天|星期一|星期二|星期三|星期四|星期五|星期六|星期日)/,
   
   // 节假日
   /(元旦|春节|元宵|清明|五一|端午|中秋|国庆)/,
@@ -130,10 +129,13 @@ export function parseDateTime(text) {
   let hasTime = false
   let cleanedText = text
   
-  // 1. 解析日期
+  console.log(`🔍 开始解析: "${text}"`)
+  
+  // 1. 解析日期 - 修复：增强日志和匹配逻辑
   for (const pattern of datePatterns) {
     const match = text.match(pattern)
     if (match) {
+      console.log(`✅ 日期匹配成功: 模式 "${pattern.source}", 匹配内容: "${match[0]}"`)
       hasDate = true
       cleanedText = cleanedText.replace(pattern, '').trim()
       
@@ -147,12 +149,15 @@ export function parseDateTime(text) {
         if (typeof value === 'number') {
           // 简单相对日期（今天、明天等）
           date = today.add(value, 'day').format('YYYY-MM-DD')
+          console.log(`📅 相对日期计算: 今天 + ${value}天 = ${date}`)
         } else if (value === 'nextWeek') {
           // 下周
           date = today.add(7, 'day').format('YYYY-MM-DD')
+          console.log(`📅 相对日期计算: 今天 + 7天 = ${date}`)
         } else if (value === 'nextNextWeek') {
           // 下下周
           date = today.add(14, 'day').format('YYYY-MM-DD')
+          console.log(`📅 相对日期计算: 今天 + 14天 = ${date}`)
         } else if (keyword.includes('周') || keyword.includes('星期')) {
           // 星期处理（中国习惯：周一为一周第一天）
           const currentDay = today.day()
@@ -167,27 +172,34 @@ export function parseDateTime(text) {
           if (daysToAdd < 0) daysToAdd += 7
           
           date = today.add(daysToAdd, 'day').format('YYYY-MM-DD')
+          console.log(`📅 星期计算: 今天(${adjustedCurrentDay}) -> ${keyword}(${adjustedTargetDay}) = ${daysToAdd}天后 = ${date}`)
         } else if (keyword === '月底') {
           // 月底
           date = today.endOf('month').format('YYYY-MM-DD')
+          console.log(`📅 月底计算: ${date}`)
         } else if (keyword === '月初') {
           // 月初
           date = today.startOf('month').format('YYYY-MM-DD')
+          console.log(`📅 月初计算: ${date}`)
         } else if (keyword === '周末') {
           // 周末（这周六）
           const saturday = today.day(6)
           date = saturday.format('YYYY-MM-DD')
+          console.log(`📅 周末计算: 这周六 = ${date}`)
         } else {
           // 其他特殊情况，暂时设为今天
           date = today.format('YYYY-MM-DD')
+          console.log(`📅 默认日期: 今天 = ${date}`)
         }
       } else if (match[3]) {
         // YYYY-MM-DD 格式
         date = `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`
+        console.log(`📅 标准日期格式: ${date}`)
       } else if (match[2]) {
         // MM-DD 格式（假设为当前年）
         const year = dayjs().year()
         date = `${year}-${match[1].padStart(2, '0')}-${match[2].padStart(2, '0')}`
+        console.log(`📅 月份日期格式: ${date}`)
       } else if (match[1] && dateKeywords[match[1]] && typeof dateKeywords[match[1]] === 'number') {
         // 月份+日期格式（如：十二月二十五日）
         const month = dateKeywords[match[1]]
@@ -201,6 +213,7 @@ export function parseDateTime(text) {
         } else {
           date = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
         }
+        console.log(`📅 中文月份格式: ${date}`)
       } else {
         // 数字+号格式（如：25号）- 默认使用当前月份
         const day = parseInt(match[1])
@@ -212,43 +225,85 @@ export function parseDateTime(text) {
         } else {
           date = today.date(day).format('YYYY-MM-DD')
         }
+        console.log(`📅 数字日期格式: ${date}`)
       }
       break
     }
   }
   
-  // 2. 解析时间
+  // 2. 解析时间 - 修复：增强日志和匹配逻辑
   for (const pattern of timePatterns) {
     const match = text.match(pattern)
     if (match) {
+      console.log(`✅ 时间匹配成功: 模式 "${pattern.source}", 匹配内容: "${match[0]}"`)
       hasTime = true
       cleanedText = cleanedText.replace(pattern, '').trim()
       
       if (pattern.source.includes('点')) {
-        // 中文时间格式
-        let hours = parseInt(match[1])
-        let minutes = match[2] ? parseInt(match[2]) : 0
+        // 中文时间格式 - 修复：处理新的正则表达式匹配组
+        let hours, minutes = 0
+        let period = ''
         
-        // 处理12小时制
-        if (text.includes('下午') || text.includes('晚上')) {
-          if (hours < 12) hours += 12
-        } else if (text.includes('上午') || text.includes('早上')) {
-          if (hours === 12) hours = 0
+        // 分析匹配组结构，支持多种时间格式
+        if (pattern.source.includes('上午|下午|晚上') && match.length >= 3) {
+          // 模式 /(上午|下午|晚上)(?:\\s*)(\\d{1,2})点?/
+          period = match[1] // 上午/下午/晚上
+          hours = parseInt(match[2])
+          console.log(`⏰ 12小时制解析: ${period} ${hours}点`)
+        } else if (pattern.source.includes('(?:\\s*)(\\d{1,2})点(?:\\s*)(上午|下午|晚上)') && match.length >= 3) {
+          // 模式 /(?:\\s*)(\\d{1,2})点(?:\\s*)(上午|下午|晚上)/
+          hours = parseInt(match[1])
+          period = match[2]
+          console.log(`⏰ 12小时制解析: ${hours}点 ${period}`)
+        } else {
+          // 简单的数字点格式
+          hours = parseInt(match[1])
+          minutes = match[2] ? parseInt(match[2]) : 0
+          console.log(`⏰ 简单时间解析: ${hours}点${minutes ? minutes + '分' : ''}`)
+        }
+        
+        // 处理12小时制转换
+        if (period) {
+          if ((period === '下午' || period === '晚上') && hours < 12) {
+            hours += 12
+            console.log(`⏰ ${period}时间修正: ${hours - 12}点 -> ${hours}点`)
+          } else if (period === '上午' && hours === 12) {
+            hours = 0
+            console.log(`⏰ 上午时间修正: 12点 -> 0点`)
+          }
+        } else {
+          // 如果没有时间段信息，尝试从原始文本中获取
+          const originalText = text.toLowerCase()
+          if (originalText.includes('下午') || originalText.includes('晚上')) {
+            if (hours < 12) {
+              hours += 12
+              console.log(`⏰ 文本检测下午时间修正: ${hours - 12}点 -> ${hours}点`)
+            }
+          } else if (originalText.includes('上午') || originalText.includes('早上')) {
+            if (hours === 12) {
+              hours = 0
+              console.log(`⏰ 文本检测上午时间修正: 12点 -> 0点`)
+            }
+          }
         }
         
         // 处理特殊时间表达
         if (pattern.source.includes('半')) {
           minutes = 30
+          console.log(`⏰ 半处理: 设置分钟为30`)
         } else if (pattern.source.includes('刻')) {
           minutes = 15
+          console.log(`⏰ 刻处理: 设置分钟为15`)
         }
         
         time = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
+        console.log(`⏰ 最终时间: ${time}`)
       } else {
         // 24小时制
         const hours = match[1].padStart(2, '0')
         const minutes = (match[2] || '00').padStart(2, '0')
         time = `${hours}:${minutes}`
+        console.log(`⏰ 24小时制时间: ${time}`)
       }
       break
     }
@@ -314,6 +369,44 @@ export function parseDateTime(text) {
     date = dayjs().format('YYYY-MM-DD')
     hasDate = true
     console.log(`📅 设置默认日期: ${date}`)
+  }
+  
+  // 修复：如果匹配了日期但没有匹配时间，但文本中有时间信息，强制重新解析时间
+  if (hasDate && !hasTime) {
+    console.log(`🔍 重新检查文本中是否有时间信息: "${text}"`)
+    for (const pattern of timePatterns) {
+      const match = text.match(pattern)
+      if (match) {
+        console.log(`✅ 重新发现时间匹配: 模式 "${pattern.source}", 匹配内容: "${match[0]}"`)
+        hasTime = true
+        
+        if (pattern.source.includes('点')) {
+          // 中文时间格式
+          let hours = parseInt(match[1])
+          let minutes = match[2] ? parseInt(match[2]) : 0
+          
+          console.log(`⏰ 重新解析时间: ${hours}点${minutes ? minutes + '分' : ''}`)
+          
+          // 处理12小时制
+          const originalText = text.toLowerCase()
+          if (originalText.includes('下午') || originalText.includes('晚上')) {
+            if (hours < 12) {
+              hours += 12
+              console.log(`⏰ 下午时间修正: ${hours - 12}点 -> ${hours}点`)
+            }
+          } else if (originalText.includes('上午') || originalText.includes('早上')) {
+            if (hours === 12) {
+              hours = 0
+              console.log(`⏰ 上午时间修正: 12点 -> 0点`)
+            }
+          }
+          
+          time = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
+          console.log(`⏰ 重新解析最终时间: ${time}`)
+          break
+        }
+      }
+    }
   }
   
   // 4. 清理后的文本作为任务标题 - 优化"今天"识别问题
