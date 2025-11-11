@@ -22,24 +22,24 @@ export class AITaskProcessor {
         return await this.handleQueryRequest(input)
       }
       
-      // 2. 任务添加相关
-      if (this.isAddRequest(input)) {
-        return await this.handleAddRequest(input)
-      }
-      
-      // 3. 任务编辑相关
+      // 2. 任务编辑相关 - 提高优先级，放在添加之前
       if (this.isEditRequest(input)) {
         return await this.handleEditRequest(input)
       }
       
-      // 4. 任务删除相关
+      // 3. 任务删除相关
       if (this.isDeleteRequest(input)) {
         return await this.handleDeleteRequest(input)
       }
       
-      // 5. 任务状态切换
+      // 4. 任务状态切换
       if (this.isToggleRequest(input)) {
         return await this.handleToggleRequest(input)
+      }
+      
+      // 5. 任务添加相关 - 降低优先级
+      if (this.isAddRequest(input)) {
+        return await this.handleAddRequest(input)
       }
       
       // 6. 统计信息
@@ -107,15 +107,21 @@ export class AITaskProcessor {
    * 判断是否为添加请求
    */
   static isAddRequest(input) {
+    // 首先检查是否包含编辑相关关键词，如果有则不认为是添加请求
+    const editKeywords = ['修改', '编辑', '更新', '更改', '调整', '改', '改为', '改成', '重新安排', '重设']
+    const hasEditKeyword = editKeywords.some(keyword => input.includes(keyword))
+    
+    if (hasEditKeyword) {
+      return false
+    }
+    
     const addKeywords = [
       '添加', '创建', '新建', '增加', '添加任务', '创建任务', 
       '记一下', '记录', '提醒我', '提醒一下', '设置', '安排',
-      '我要', '帮我', '需要', '想', '打算', '计划', '准备',
-      '明天', '后天', '下周', '今天', '今晚', '晚上', '早上', '下午',
-      '开会', '会议', '学习', '工作', '健身', '购物', '约会', '任务'
+      '我要', '帮我', '需要', '想', '打算', '计划', '准备'
     ]
     
-    // 检查是否包含添加关键词
+    // 检查是否包含明确的添加关键词
     const hasAddKeyword = addKeywords.some(keyword => input.includes(keyword))
     
     // 检查是否包含任务相关的名词
@@ -126,8 +132,10 @@ export class AITaskProcessor {
     const timeKeywords = ['明天', '后天', '下周', '今天', '今晚', '晚上', '早上', '下午', '几点', '何时']
     const hasTimeKeyword = timeKeywords.some(keyword => input.includes(keyword))
     
-    // 如果包含明确添加关键词，或者包含任务名词且有时间关键词，则认为是添加请求
-    return hasAddKeyword || (hasTaskNoun && hasTimeKeyword)
+    // 判断条件：
+    // 1. 明确包含添加关键词，或者
+    // 2. 包含任务名词且有时间关键词，且不包含编辑关键词
+    return hasAddKeyword || (hasTaskNoun && hasTimeKeyword && !hasEditKeyword)
   }
 
   /**
@@ -164,8 +172,28 @@ export class AITaskProcessor {
    * 判断是否为编辑请求
    */
   static isEditRequest(input) {
-    const editKeywords = ['修改', '编辑', '更新', '更改', '调整']
-    return editKeywords.some(keyword => input.includes(keyword))
+    const editKeywords = ['修改', '编辑', '更新', '更改', '调整', '改', '改为', '改成', '重新安排', '重设']
+    
+    // 特别处理时间修改相关的关键词
+    const timeEditKeywords = ['时间', '日期', '时段', '几点', '何时', '什么时候', '改时间', '改日期']
+    
+    // 检查是否包含明确的编辑关键词
+    const hasExplicitEdit = editKeywords.some(keyword => input.includes(keyword))
+    
+    // 检查是否包含时间修改相关的关键词，并且有具体的任务描述
+    const hasTimeEdit = timeEditKeywords.some(keyword => input.includes(keyword))
+    
+    // 检查是否包含任务匹配的关键词（会议、任务等）
+    const taskKeywords = ['会议', '任务', '事情', '事项', '安排', '约会']
+    const hasTask = taskKeywords.some(keyword => input.includes(keyword))
+    
+    // 判断条件：
+    // 1. 明确的编辑关键词，或者
+    // 2. 时间修改关键词 + 任务关键词，或者
+    // 3. 包含"改"字 + 任务关键词
+    return hasExplicitEdit || 
+           (hasTimeEdit && hasTask) ||
+           (input.includes('改') && hasTask)
   }
 
   /**
@@ -187,7 +215,7 @@ export class AITaskProcessor {
     }
     
     // 解析更新信息
-    const updates = this.parseUpdateInfo(input)
+    const updates = await this.parseUpdateInfo(input)
     
     if (Object.keys(updates).length === 0) {
       return `请提供要修改的内容。可以修改任务标题、截止日期、截止时间或优先级。\n当前任务信息：\n${AITaskService.formatTaskForAI(taskToEdit)}`
@@ -326,32 +354,122 @@ export class AITaskProcessor {
    * 根据标题查找任务
    */
   static findTaskByTitle(input, tasks) {
-    // 移除编辑关键词
-    const cleanInput = input.replace(/修改|编辑|更新|更改|删除|移除|完成|标记/g, '').trim()
+    // 移除编辑关键词，保留原始内容用于匹配
+    const cleanInput = input.replace(/修改|编辑|更新|更改|删除|移除|完成|标记|时间|日期|改为|改成/g, '').trim()
     
-    // 尝试精确匹配
-    const exactMatch = tasks.find(task => 
-      task.title.toLowerCase().includes(cleanInput.toLowerCase()) ||
-      cleanInput.toLowerCase().includes(task.title.toLowerCase())
+    // 提取可能的关键词进行匹配
+    const keywords = this.extractKeywordsForMatching(cleanInput)
+    
+    // 优先查找完全匹配的任务
+    const exactMatches = tasks.filter(task => 
+      cleanInput.toLowerCase().includes(task.title.toLowerCase()) ||
+      task.title.toLowerCase().includes(cleanInput.toLowerCase())
     )
     
-    if (exactMatch) {
-      return exactMatch
+    if (exactMatches.length === 1) {
+      return exactMatches[0]
     }
     
-    // 尝试部分匹配
-    const partialMatch = tasks.find(task => 
-      task.title.toLowerCase().includes(cleanInput) ||
-      cleanInput.includes(task.title.toLowerCase())
+    // 如果没有完全匹配，尝试关键词匹配
+    const keywordMatches = tasks.filter(task => 
+      keywords.some(keyword => 
+        task.title.toLowerCase().includes(keyword) ||
+        keyword.includes(task.title.toLowerCase())
+      )
     )
     
-    return partialMatch
+    if (keywordMatches.length === 1) {
+      return keywordMatches[0]
+    }
+    
+    // 如果有多重匹配，返回最相关的任务
+    if (keywordMatches.length > 0) {
+      // 优先选择包含度最高的任务
+      return keywordMatches.reduce((best, current) => 
+        this.calculateRelevanceScore(current.title, cleanInput) > 
+        this.calculateRelevanceScore(best.title, cleanInput) ? current : best
+      )
+    }
+    
+    // 最后尝试部分匹配
+    for (const task of tasks) {
+      const taskWords = task.title.toLowerCase().split(/[\s\-\_]+/)
+      const inputWords = cleanInput.toLowerCase().split(/[\s\-\_]+/)
+      
+      const commonWords = taskWords.filter(word => 
+        inputWords.some(inputWord => 
+          word.includes(inputWord) || inputWord.includes(word)
+        )
+      )
+      
+      if (commonWords.length > 0) {
+        return task
+      }
+    }
+    
+    return null
+  }
+  
+  /**
+   * 提取用于匹配的关键词
+   */
+  static extractKeywordsForMatching(input) {
+    const commonWords = ['的', '和', '与', '或', '在', '到', '从', '为', '给', '把', '被', '让', '使']
+    
+    return input
+      .split(/[\s\-\_]+/)
+      .filter(word => 
+        word.length > 1 && 
+        !commonWords.includes(word) &&
+        !this.isDateOrTimeWord(word)
+      )
+      .map(word => word.toLowerCase())
+  }
+  
+  /**
+   * 判断是否为日期时间相关词汇
+   */
+  static isDateOrTimeWord(word) {
+    const timeWords = ['时间', '日期', '时候', '几点', '何时', '什么时间', '开始', '结束', '上午', '下午', '晚上', '明天', '后天', '今天']
+    const numberWords = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10']
+    
+    return timeWords.some(timeWord => word.includes(timeWord)) ||
+           numberWords.some(numWord => word.includes(numWord))
+  }
+  
+  /**
+   * 计算任务标题与输入的相关性分数
+   */
+  static calculateRelevanceScore(taskTitle, input) {
+    const titleWords = taskTitle.toLowerCase().split(/[\s\-\_]+/)
+    const inputWords = input.toLowerCase().split(/[\s\-\_]+/)
+    
+    let score = 0
+    
+    // 计算共同词汇数量
+    const commonWords = inputWords.filter(inputWord => 
+      titleWords.some(titleWord => 
+        titleWord.includes(inputWord) || inputWord.includes(titleWord)
+      )
+    )
+    
+    score += commonWords.length * 10
+    
+    // 计算字符匹配度
+    const maxLength = Math.max(taskTitle.length, input.length)
+    const minLength = Math.min(taskTitle.length, input.length)
+    
+    if (maxLength > 0) {
+      score += (minLength / maxLength) * 20
+    }
+    
+    return score
   }
 
   /**
-   * 解析更新信息
+   * 解析更新信息 - 应用统一的时间识别逻辑
    */
-  static parseUpdateInfo(input) {
+  static async parseUpdateInfo(input) {
     const updates = {}
     
     // 提取新标题
@@ -362,35 +480,24 @@ export class AITaskProcessor {
       }
     }
     
-    // 提取日期信息
-    const datePatterns = [
-      /(\d{1,2}月\d{1,2}日)/g,
-      /(\d{1,2}日)/g,
-      /(明天|后天|下周|下个月)/g,
-      /(\d{4}-\d{1,2}-\d{1,2})/g
-    ]
+    // 使用统一的日期解析器来提取日期和时间信息
+    const parsedInfo = await smartParseTodo(input)
     
-    for (const pattern of datePatterns) {
-      const match = input.match(pattern)
-      if (match) {
-        updates.dueDate = this.normalizeDate(match[0])
-        break
-      }
+    // 日期和时间处理
+    if (parsedInfo.dueDate) {
+      updates.dueDate = parsedInfo.dueDate
     }
     
-    // 提取时间信息
-    const timePattern = /(\d{1,2}:\d{2})/g
-    const timeMatch = input.match(timePattern)
-    if (timeMatch) {
-      updates.dueTime = timeMatch[0]
+    if (parsedInfo.dueTime) {
+      updates.dueTime = parsedInfo.dueTime
     }
     
     // 提取优先级
-    if (input.includes('高优先级') || input.includes('设为重要')) {
+    if (input.includes('高优先级') || input.includes('设为重要') || input.includes('重要')) {
       updates.priority = 'high'
-    } else if (input.includes('低优先级') || input.includes('设为不急')) {
+    } else if (input.includes('低优先级') || input.includes('设为不急') || input.includes('不急')) {
       updates.priority = 'low'
-    } else if (input.includes('中优先级') || input.includes('设为普通')) {
+    } else if (input.includes('中优先级') || input.includes('设为普通') || input.includes('普通')) {
       updates.priority = 'medium'
     }
     
@@ -415,7 +522,7 @@ export class AITaskProcessor {
       .trim()
     
     // 如果输入是简单的自然语言，直接返回
-    if (cleanInput.length > 3 && cleanInput.length < 50) {
+    if (cleanInput.length > 0 && cleanInput.length < 50) {
       return cleanInput
     }
     
@@ -440,76 +547,58 @@ export class AITaskProcessor {
       }
     }
     
-    return null
+    // 如果以上方法都失败，返回原始输入（移除关键词）
+    const titleMatch = input.replace(/添加|创建|新建|增加|任务|提醒|记一下|记录|设置|安排|帮我|需要|想|打算|计划|准备/g, '').trim()
+    return titleMatch || '任务'
   }
 
   /**
-   * 增强日期解析功能
+   * 增强日期解析功能 - 全面应用统一的时间识别逻辑
    */
   static async parseTaskInfo(input) {
     const taskInfo = {}
     
-    // 先尝试智能提取标题
-    const extractedTitle = this.extractTaskTitle(input)
-    if (extractedTitle) {
-      taskInfo.title = extractedTitle
-    } else {
-      // 提取标题（移除添加关键词后的内容）
-      const titleMatch = input.replace(/添加|创建|新建|增加|任务/g, '').trim()
-      if (titleMatch) {
-        taskInfo.title = titleMatch
-      }
-    }
-    
     // 使用统一的日期解析器（与列表界面保持一致）
     const parsedInfo = await smartParseTodo(input)
     
+    // 应用解析结果
+    if (parsedInfo.title) {
+      taskInfo.title = parsedInfo.title
+    } else {
+      // 如果统一解析器没有解析到标题，尝试智能提取标题
+      const extractedTitle = this.extractTaskTitle(input)
+      if (extractedTitle) {
+        taskInfo.title = extractedTitle
+      } else {
+        // 最后尝试移除关键词提取标题
+        const titleMatch = input.replace(/添加|创建|新建|增加|任务|提醒|记一下|记录|设置|安排|帮我|需要|想|打算|计划|准备/g, '').trim()
+        if (titleMatch) {
+          taskInfo.title = titleMatch
+        }
+      }
+    }
+    
+    // 日期和时间处理
     if (parsedInfo.dueDate) {
       taskInfo.dueDate = parsedInfo.dueDate
+    } else {
+      // 如果没有解析到日期，设置默认日期为当天
+      taskInfo.dueDate = dayjs().format('YYYY-MM-DD')
+      console.log(`📅 AI助手设置默认日期: ${taskInfo.dueDate}`)
     }
     
     if (parsedInfo.dueTime) {
       taskInfo.dueTime = parsedInfo.dueTime
     }
     
-    // 如果没有解析到标题，使用原来的标题
-    if (!taskInfo.title && parsedInfo.title) {
-      taskInfo.title = parsedInfo.title
-    }
-    
-    // 如果统一解析器没有找到时间，再尝试原有的时间提取
-    if (!taskInfo.dueTime) {
-      // 提取时间信息 - 增强版本
-      const timePatterns = [
-        /(\d{1,2}:\d{2})/g,
-        /(\d{1,2})点(\d{1,2})分?/g,
-        /(\d{1,2})点/g,
-        /上午\s*(\d{1,2})点?/g,
-        /下午\s*(\d{1,2})点?/g,
-        /晚上\s*(\d{1,2})点?/g,
-        /(\d{1,2})[点时]半/g,
-        /(\d{1,2})刻/g
-      ]
-      
-      for (const pattern of timePatterns) {
-        const match = input.match(pattern)
-        if (match) {
-          const normalizedTime = this.normalizeTime(match[0])
-          if (normalizedTime) {
-            taskInfo.dueTime = normalizedTime
-          }
-          break
-        }
-      }
-    }
-    
-    // 提取优先级
+    // 优先级处理
     if (input.includes('高优先级') || input.includes('重要') || input.includes('紧急')) {
       taskInfo.priority = 'high'
     } else if (input.includes('低优先级') || input.includes('不急') || input.includes('普通')) {
       taskInfo.priority = 'low'
     } else {
-      taskInfo.priority = 'medium'
+      // 如果没有明确指定优先级，使用智能优先级判断
+      taskInfo.priority = parsedInfo.priority || 'medium'
     }
     
     return taskInfo

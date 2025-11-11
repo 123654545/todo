@@ -90,8 +90,11 @@
           <div class="todo-content" @click="editTodo(todo)">
             <h3>{{ todo.title }}</h3>
             <p class="todo-meta">
-              <span v-if="todo.dueDate">截止: {{ formatDate(todo.dueDate) }}</span>
-              <span v-if="todo.dueTime"> {{ todo.dueTime }}</span>
+              <span v-if="todo.dueDate" class="due-date-info">
+                📅 截止: {{ formatDate(todo.dueDate) }}
+                <span v-if="todo.dueTime"> {{ todo.dueTime }}</span>
+              </span>
+              <span v-if="!todo.dueDate" class="no-due-date">📅 无截止日期</span>
               <span v-if="calculateIsOverdue(todo)" class="overdue-badge">已逾期</span>
               <span v-if="todo.priority" :class="`priority-${todo.priority}`">
                 {{ getPriorityText(todo.priority) }}
@@ -164,12 +167,13 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { smartParseTodo } from '../utils/dateParser'
 import { AuthService, TodoService } from '../config/storage.js'
 import { supabase } from '../config/supabase.js'
+import { eventBus, EVENT_TYPES } from '../utils/eventBus.js'
 
 export default {
   name: 'TodoList',
@@ -430,18 +434,24 @@ export default {
           // 恢复输入框内容
           nlInput.value = ''
           
-          // 检查日期是否在当前月份已过
+          // 检查是否成功解析了日期 - 修复默认日期处理
           if (parsedTodo.dueDate) {
+            console.log(`📅 解析到日期: ${parsedTodo.dueDate}`)
+            
             const taskDate = dayjs(parsedTodo.dueDate)
             const today = dayjs()
             
-            // 如果日期在当前月份且已过，显示弹窗提醒
-            if (taskDate.isSame(today, 'month') && taskDate.isBefore(today, 'day')) {
+            // 如果日期在当前月份且已过，但不是今天，显示弹窗提醒
+            if (taskDate.isSame(today, 'month') && taskDate.isBefore(today, 'day') && !taskDate.isSame(today, 'day')) {
               pendingTask.value = parsedTodo
               pendingTaskDate.value = taskDate.format('YYYY-MM-DD')
               showDateWarning.value = true
               return // 等待用户选择
             }
+          } else {
+            // 如果没有解析到日期，确保使用默认日期（当天）
+            parsedTodo.dueDate = dayjs().format('YYYY-MM-DD')
+            console.log(`📅 设置默认日期: ${parsedTodo.dueDate}`)
           }
           
           // 使用用户选择的优先级覆盖自动判断的优先级
@@ -577,7 +587,18 @@ export default {
       }
     }
 
-    const formatDate = (date) => dayjs(date).format('MM月DD日')
+    const formatDate = (date) => {
+      if (!date) return ''
+      const taskDate = dayjs(date)
+      const today = dayjs()
+      
+      // 如果日期是今年，只显示月日；如果是其他年份，显示完整日期
+      if (taskDate.year() === today.year()) {
+        return taskDate.format('MM月DD日')
+      } else {
+        return taskDate.format('YYYY年MM月DD日')
+      }
+    }
 
     const formatDateTime = (dateTime) => {
       if (!dateTime) return ''
@@ -616,7 +637,121 @@ export default {
           console.log('设置已更新，当前优先级:', selectedPriority.value)
         }
       })
+      
+      // 监听任务相关事件 - 实现即时响应
+      setupEventListeners()
     })
+
+    // 组件卸载时清理事件监听器
+    onUnmounted(() => {
+      cleanupEventListeners()
+    })
+
+    // 设置事件监听器
+    const setupEventListeners = () => {
+      // 监听任务创建事件
+      eventBus.on(EVENT_TYPES.TASK_CREATED, handleTaskCreated)
+      
+      // 监听任务更新事件
+      eventBus.on(EVENT_TYPES.TASK_UPDATED, handleTaskUpdated)
+      
+      // 监听任务删除事件
+      eventBus.on(EVENT_TYPES.TASK_DELETED, handleTaskDeleted)
+      
+      // 监听任务状态切换事件
+      eventBus.on(EVENT_TYPES.TASK_TOGGLED, handleTaskToggled)
+      
+      // 监听任务列表刷新事件
+      eventBus.on(EVENT_TYPES.TASKS_REFRESH, handleTasksRefresh)
+      
+      // 监听UI刷新请求
+      eventBus.on(EVENT_TYPES.UI_REFRESH_REQUIRED, handleUIRefresh)
+    }
+
+    // 清理事件监听器
+    const cleanupEventListeners = () => {
+      eventBus.off(EVENT_TYPES.TASK_CREATED, handleTaskCreated)
+      eventBus.off(EVENT_TYPES.TASK_UPDATED, handleTaskUpdated)
+      eventBus.off(EVENT_TYPES.TASK_DELETED, handleTaskDeleted)
+      eventBus.off(EVENT_TYPES.TASK_TOGGLED, handleTaskToggled)
+      eventBus.off(EVENT_TYPES.TASKS_REFRESH, handleTasksRefresh)
+      eventBus.off(EVENT_TYPES.UI_REFRESH_REQUIRED, handleUIRefresh)
+    }
+
+    // 处理任务创建事件
+    const handleTaskCreated = (eventData) => {
+      console.log('任务创建事件:', eventData)
+      
+      // 只处理来自AI助手的事件
+      if (eventData.source === 'ai') {
+        // 将新任务添加到列表开头
+        todos.value.unshift({
+          id: eventData.task.id,
+          title: eventData.task.title,
+          completed: eventData.task.completed,
+          dueDate: eventData.task.dueDate,
+          dueTime: eventData.task.dueTime,
+          priority: eventData.task.priority,
+          nluRaw: eventData.task.nluRaw || null
+        })
+        
+        // 显示成功提示
+        console.log('AI助手创建的任务已同步到界面:', eventData.task.title)
+      }
+    }
+
+    // 处理任务更新事件
+    const handleTaskUpdated = (eventData) => {
+      console.log('任务更新事件:', eventData)
+      
+      // 只处理来自AI助手的事件
+      if (eventData.source === 'ai') {
+        const taskIndex = todos.value.findIndex(t => t.id === eventData.taskId)
+        if (taskIndex !== -1) {
+          // 更新本地任务数据
+          Object.assign(todos.value[taskIndex], eventData.newTask)
+          console.log('AI助手更新的任务已同步到界面:', eventData.newTask.title)
+        }
+      }
+    }
+
+    // 处理任务删除事件
+    const handleTaskDeleted = (eventData) => {
+      console.log('任务删除事件:', eventData)
+      
+      // 只处理来自AI助手的事件
+      if (eventData.source === 'ai') {
+        todos.value = todos.value.filter(t => t.id !== eventData.taskId)
+        console.log('AI助手删除的任务已从界面移除:', eventData.taskTitle)
+      }
+    }
+
+    // 处理任务状态切换事件
+    const handleTaskToggled = (eventData) => {
+      console.log('任务状态切换事件:', eventData)
+      
+      // 只处理来自AI助手的事件
+      if (eventData.source === 'ai') {
+        const task = todos.value.find(t => t.id === eventData.taskId)
+        if (task) {
+          task.completed = eventData.completed
+          console.log('AI助手更新的任务状态已同步:', task.title, eventData.completed ? '已完成' : '待办')
+        }
+      }
+    }
+
+    // 处理任务列表刷新事件
+    const handleTasksRefresh = async () => {
+      console.log('收到任务列表刷新请求，重新加载数据...')
+      await loadTodos()
+    }
+
+    // 处理UI刷新请求
+    const handleUIRefresh = () => {
+      console.log('收到UI刷新请求，强制重新渲染...')
+      // Vue 3 会自动响应式更新，这里触发重新渲染
+      todos.value = [...todos.value]
+    }
 
     return {
       nlInput,

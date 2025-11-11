@@ -2,6 +2,7 @@
   <div id="app">
     <router-view />
     <AIChatButton v-if="isAuthenticated" />
+    <AIResponseAnimator v-if="isAuthenticated" />
   </div>
 </template>
 
@@ -9,12 +10,14 @@
 import { onMounted, ref, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import AIChatButton from './components/AIChatButton.vue'
+import AIResponseAnimator from './components/AIResponseAnimator.vue'
 import { AuthService } from './config/storage.js'
 
 export default {
   name: 'App',
   components: {
-    AIChatButton
+    AIChatButton,
+    AIResponseAnimator
   },
   setup() {
     const router = useRouter()

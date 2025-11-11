@@ -68,6 +68,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import dayjs from 'dayjs'
 import { deepSeekService } from '../services/deepseekService.js'
+import { EventEmitter, EVENT_TYPES } from '../utils/eventBus.js'
 
 export default {
   name: 'AIChatButton',
@@ -155,6 +156,12 @@ export default {
           text: aiResponse,
           time: dayjs().format('HH:mm')
         })
+
+        // 发布AI任务处理事件（用于数据同步）
+        EventEmitter.aiTaskProcessed('ai_response', aiResponse, currentInput)
+
+        // 发布AI任务处理事件（用于数据同步）
+        EventEmitter.aiTaskProcessed('ai_response', aiResponse, currentInput)
 
       } catch (error) {
         // 移除加载消息

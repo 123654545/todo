@@ -1,5 +1,6 @@
 import { TodoService } from './todoService.js'
 import dayjs from 'dayjs'
+import { EventEmitter } from '../utils/eventBus.js'
 
 /**
  * AI任务管理服务
@@ -138,7 +139,7 @@ export class AITaskService {
         priority
       })
 
-      return {
+      const task = {
         id: newTodo.id,
         title: newTodo.title,
         completed: newTodo.completed,
@@ -146,6 +147,11 @@ export class AITaskService {
         dueTime: newTodo.due_time,
         priority: newTodo.priority
       }
+
+      // 发布任务创建事件
+      EventEmitter.taskCreated(task, 'ai')
+
+      return task
     } catch (error) {
       console.error('添加任务失败:', error)
       throw new Error(`添加任务失败: ${error.message}`)
@@ -192,7 +198,7 @@ export class AITaskService {
         priority: updates.priority || existingTask.priority
       })
 
-      return {
+      const newTask = {
         id: updatedTodo.id,
         title: updatedTodo.title,
         completed: updatedTodo.completed,
@@ -200,6 +206,11 @@ export class AITaskService {
         dueTime: updatedTodo.due_time,
         priority: updatedTodo.priority
       }
+
+      // 发布任务更新事件
+      EventEmitter.taskUpdated(taskId, updates, existingTask, newTask, 'ai')
+
+      return newTask
     } catch (error) {
       console.error('编辑任务失败:', error)
       throw new Error(`编辑任务失败: ${error.message}`)
@@ -222,6 +233,10 @@ export class AITaskService {
       }
 
       await TodoService.deleteTodo(taskId)
+      
+      // 发布任务删除事件
+      EventEmitter.taskDeleted(taskId, existingTask.title, 'ai')
+      
       return true
     } catch (error) {
       console.error('删除任务失败:', error)
@@ -238,7 +253,8 @@ export class AITaskService {
   static async toggleTask(taskId, completed) {
     try {
       const updatedTodo = await TodoService.toggleTodo(taskId, completed)
-      return {
+      
+      const task = {
         id: updatedTodo.id,
         title: updatedTodo.title,
         completed: updatedTodo.completed,
@@ -246,6 +262,11 @@ export class AITaskService {
         dueTime: updatedTodo.due_time,
         priority: updatedTodo.priority
       }
+      
+      // 发布任务状态切换事件
+      EventEmitter.taskToggled(taskId, completed, 'ai')
+      
+      return task
     } catch (error) {
       console.error('切换任务状态失败:', error)
       throw new Error(`切换任务状态失败: ${error.message}`)
