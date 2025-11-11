@@ -1116,7 +1116,7 @@ export default {
     }
     
     const showAchievements = () => {
-      alert('成就系统开发中...')
+      router.push('/achievements')
     }
     
     const showTaskDetails = (type) => {

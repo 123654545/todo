@@ -9,6 +9,7 @@ import CompletedTasks from '../views/CompletedTasks.vue'
 import OverdueTasks from '../views/OverdueTasks.vue'
 import Statistics from '../views/Statistics.vue'
 import InProgressTasks from '../views/InProgressTasks.vue'
+import Achievements from '../views/Achievements.vue'
 
 const routes = [
   {
@@ -64,6 +65,11 @@ const routes = [
     path: '/in-progress-tasks',
     name: 'InProgressTasks',
     component: InProgressTasks
+  },
+  {
+    path: '/achievements',
+    name: 'Achievements',
+    component: () => import('../views/AchievementsNew.vue')
   }
 ]
 
